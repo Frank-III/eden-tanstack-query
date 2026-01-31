@@ -1,0 +1,60 @@
+{
+	"name": "eden-tanstack-query",
+	"version": "0.1.0-alpha.2",
+	"description": "TanStack Query integration for Elysia Eden - type-safe queries and mutations",
+	"author": {
+		"name": "Frank-III",
+		"url": "https://github.com/Frank-III"
+	},
+	"type": "module",
+	"main": "./dist/index.mjs",
+	"exports": {
+		"./package.json": "./package.json",
+		".": {
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs"
+		}
+	},
+	"types": "./dist/index.d.mts",
+	"files": [
+		"dist",
+		"src"
+	],
+	"keywords": [
+		"elysia",
+		"eden",
+		"tanstack-query",
+		"react-query",
+		"svelte-query",
+		"vue-query",
+		"solid-query",
+		"type-safe",
+		"rpc"
+	],
+	"homepage": "https://github.com/Frank-III/eden",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Frank-III/eden"
+	},
+	"bugs": "https://github.com/Frank-III/eden/issues",
+	"license": "MIT",
+	"scripts": {
+		"build": "tsdown",
+		"test": "bun test",
+		"prepublishOnly": "bun run build"
+	},
+	"peerDependencies": {
+		"@elysiajs/eden": ">=1.0.0",
+		"@tanstack/query-core": ">=5.0.0",
+		"elysia": ">=1.0.0"
+	},
+	"devDependencies": {
+		"@elysiajs/eden": "^1.4.6",
+		"@tanstack/query-core": "^5.90.20",
+		"@types/bun": "^1.3.8",
+		"elysia": "^1.4.22",
+		"expect-type": "^1.3.0",
+		"tsdown": "^0.20.1",
+		"typescript": "^5.9.3"
+	}
+}
