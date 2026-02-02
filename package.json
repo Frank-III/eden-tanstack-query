@@ -1,6 +1,6 @@
 {
 	"name": "eden-tanstack-query",
-	"version": "0.1.0-alpha.2",
+	"version": "0.1.0-alpha.4",
 	"description": "TanStack Query integration for Elysia Eden - type-safe queries and mutations",
 	"author": {
 		"name": "Frank-III",

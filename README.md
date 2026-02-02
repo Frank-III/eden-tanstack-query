@@ -34,13 +34,34 @@ const query = createQuery(() =>
 // query.data is typed as your Elysia response type!
 ```
 
+### Infinite Queries
+
+```ts
+import { createInfiniteQuery } from '@tanstack/svelte-query'
+
+const infiniteQuery = createInfiniteQuery(() =>
+  eden.posts.get.infiniteQueryOptions(
+    { query: { limit: '10' } },
+    {
+      initialPageParam: 0,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      // cursorKey: 'cursor' // optional, defaults to 'cursor'
+    }
+  )
+)
+```
+
 ### Mutations
 
 ```ts
 import { createMutation } from '@tanstack/svelte-query'
 
 const mutation = createMutation(() => 
-  eden.users.post.mutationOptions()
+  eden.users.post.mutationOptions({
+    onSuccess: (data) => {
+      console.log('Created user:', data.id)
+    }
+  })
 )
 
 // Type-safe variables
@@ -65,6 +86,27 @@ await eden.users({ id: '123' }).get.invalidate(queryClient, {
 await eden.users({ id: '123' }).get.invalidate(queryClient)
 ```
 
+### Utils (Bound QueryClient)
+
+For tRPC-like ergonomics, use `createEdenTQUtils` to bind a QueryClient once:
+
+```ts
+import { createEdenTQ, createEdenTQUtils } from 'eden-tanstack-query'
+
+const eden = createEdenTQ<App>('http://localhost:3000')
+const utils = createEdenTQUtils(eden, queryClient)
+
+// No need to pass queryClient every time!
+await utils.users({ id: '123' }).get.invalidate({ params: { id: '123' } })
+await utils.posts.get.prefetch({ query: { limit: '10' } })
+await utils.posts.get.cancel()
+await utils.posts.get.refetch()
+
+// Cache manipulation
+utils.users({ id: '123' }).get.setData({ params: { id: '123' } }, { id: '123', name: 'Updated' })
+const cached = utils.users({ id: '123' }).get.getData({ params: { id: '123' } })
+```
+
 ## API
 
 ### `createEdenTQ<App>(domain, config?)`
@@ -74,15 +116,59 @@ Creates a type-safe Eden client with TanStack Query helpers.
 - `domain`: Your API URL or Elysia app instance
 - `config.queryKeyPrefix`: Custom prefix for query keys (default: `['eden']`)
 
+### `createEdenTQUtils<App>(eden, queryClient)`
+
+Creates a utils object with a bound QueryClient for tRPC-like ergonomics.
+
 ### Method Helpers
 
 Each HTTP method (`get`, `post`, `put`, `delete`, `patch`) has:
 
-- `.queryOptions(input, overrides?)` - Returns `{ queryKey, queryFn }`
-- `.mutationOptions(overrides?)` - Returns `{ mutationKey, mutationFn }`
-- `.queryKey(input?)` - Returns the query key
-- `.mutationKey(input?)` - Returns the mutation key
-- `.invalidate(queryClient, input?, exact?)` - Invalidates matching queries
+| Method | Description |
+|--------|-------------|
+| `.queryOptions(input, overrides?)` | Returns `{ queryKey, queryFn, ...options }` for `createQuery` |
+| `.infiniteQueryOptions(input, opts, overrides?)` | Returns options for `createInfiniteQuery` |
+| `.mutationOptions(overrides?)` | Returns `{ mutationKey, mutationFn, ...options }` for `createMutation` |
+| `.queryKey(input?)` | Returns the query key |
+| `.mutationKey(input?)` | Returns the mutation key |
+| `.invalidate(queryClient, input?, exact?)` | Invalidates matching queries |
+| `.prefetch(queryClient, input)` | Prefetch a query |
+| `.ensureData(queryClient, input)` | Ensure data exists or fetch it |
+| `.setData(queryClient, input, updater)` | Manually set cache data |
+| `.getData(queryClient, input)` | Read from cache |
+
+### Query Options Overrides
+
+You can pass standard TanStack Query options as overrides:
+
+```ts
+eden.posts.get.queryOptions(
+  { query: { limit: '10' } },
+  {
+    staleTime: 5000,
+    gcTime: 10000,
+    enabled: isReady,
+    refetchOnMount: false,
+    retry: 3
+  }
+)
+```
+
+### Mutation Options Overrides
+
+```ts
+eden.users.post.mutationOptions({
+  onMutate: (variables) => {
+    // Optimistic update
+  },
+  onSuccess: (data, variables) => {
+    // Invalidate related queries
+  },
+  onError: (error, variables, context) => {
+    // Rollback
+  }
+})
+```
 
 ## Before / After
 

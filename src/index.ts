@@ -1,7 +1,13 @@
 import type { Elysia } from 'elysia'
-import type { QueryKey, QueryClient } from '@tanstack/query-core'
+import type { QueryKey, QueryClient, QueryFunctionContext } from '@tanstack/query-core'
 import { treaty, type Treaty } from '@elysiajs/eden/treaty2'
-import type { EdenTQ, EdenQueryOptions, EdenMutationOptions } from './types'
+import type {
+    EdenTQ,
+    EdenTQUtils,
+    EdenQueryOptions,
+    EdenInfiniteQueryOptions,
+    EdenMutationOptions
+} from './types'
 
 const HTTP_METHODS = [
     'get',
@@ -102,6 +108,21 @@ interface ProxyContext {
     prefix: QueryKey
 }
 
+interface MethodDecoratorInput {
+    params?: Record<string, string | number>
+    body?: unknown
+    query?: unknown
+    headers?: unknown
+    fetch?: RequestInit
+}
+
+interface InfiniteQueryOpts<TData, TPageParam> {
+    initialPageParam: TPageParam
+    getNextPageParam: (lastPage: TData, allPages: TData[], lastPageParam: TPageParam, allPageParams: TPageParam[]) => TPageParam | undefined | null
+    getPreviousPageParam?: (firstPage: TData, allPages: TData[], firstPageParam: TPageParam, allPageParams: TPageParam[]) => TPageParam | undefined | null
+    cursorKey?: string
+}
+
 function createMethodDecorator(
     ctx: ProxyContext,
     paths: string[],
@@ -109,9 +130,7 @@ function createMethodDecorator(
 ) {
     const pathTemplate = [...paths]
 
-    const fn = (
-        input?: { params?: Record<string, string | number>; body?: unknown; query?: unknown; headers?: unknown; fetch?: RequestInit }
-    ) => {
+    const fn = (input?: MethodDecoratorInput) => {
         const materializedPath = materializePath(pathTemplate, input?.params)
         return callTreaty(ctx.raw, materializedPath, method, input)
     }
@@ -123,7 +142,7 @@ function createMethodDecorator(
     }
 
     fn.queryOptions = <TData = unknown>(
-        input: { params?: Record<string, string | number>; query?: unknown; headers?: unknown; fetch?: RequestInit },
+        input: MethodDecoratorInput,
         overrides?: Partial<EdenQueryOptions<TData>>
     ): EdenQueryOptions<TData> => {
         return {
@@ -132,6 +151,33 @@ function createMethodDecorator(
                 const materializedPath = materializePath(pathTemplate, input?.params)
                 return dataOrThrow(callTreaty(ctx.raw, materializedPath, method, input))
             },
+            ...overrides
+        }
+    }
+
+    fn.infiniteQueryOptions = <TData = unknown, TPageParam = unknown>(
+        input: { params?: Record<string, string | number>; query?: unknown; headers?: unknown; fetch?: RequestInit; cursorKey?: string },
+        opts: InfiniteQueryOpts<TData, TPageParam>,
+        overrides?: Partial<EdenInfiniteQueryOptions<TData, unknown, TPageParam>>
+    ): EdenInfiniteQueryOptions<TData, unknown, TPageParam> => {
+        const cursorKey = opts.cursorKey ?? input.cursorKey ?? 'cursor'
+
+        return {
+            queryKey: fn.queryKey(input),
+            queryFn: (context: QueryFunctionContext<QueryKey, TPageParam>) => {
+                const materializedPath = materializePath(pathTemplate, input?.params)
+                const queryWithCursor = {
+                    ...input.query as Record<string, unknown>,
+                    [cursorKey]: context.pageParam
+                }
+                return dataOrThrow<TData>(callTreaty(ctx.raw, materializedPath, method, {
+                    ...input,
+                    query: queryWithCursor
+                }))
+            },
+            initialPageParam: opts.initialPageParam,
+            getNextPageParam: opts.getNextPageParam,
+            getPreviousPageParam: opts.getPreviousPageParam,
             ...overrides
         }
     }
@@ -148,7 +194,7 @@ function createMethodDecorator(
         return {
             mutationKey: [...ctx.prefix, method, pathTemplate],
             mutationFn: (variables: TVariables) => {
-                const vars = variables as { params?: Record<string, string | number>; body?: unknown; query?: unknown; headers?: unknown; fetch?: RequestInit }
+                const vars = variables as MethodDecoratorInput
                 const materializedPath = materializePath(pathTemplate, vars?.params)
                 return dataOrThrow(callTreaty(ctx.raw, materializedPath, method, vars))
             },
@@ -167,15 +213,54 @@ function createMethodDecorator(
         await queryClient.invalidateQueries({ queryKey, exact })
     }
 
+    fn.prefetch = async (
+        queryClient: QueryClient,
+        input: MethodDecoratorInput
+    ): Promise<void> => {
+        await queryClient.prefetchQuery(fn.queryOptions(input))
+    }
+
+    fn.ensureData = async <TData = unknown>(
+        queryClient: QueryClient,
+        input: MethodDecoratorInput
+    ): Promise<TData> => {
+        return queryClient.ensureQueryData(fn.queryOptions<TData>(input))
+    }
+
+    fn.setData = <TData = unknown>(
+        queryClient: QueryClient,
+        input: { params?: Record<string, string | number>; query?: unknown },
+        updater: TData | ((old: TData | undefined) => TData | undefined)
+    ): TData | undefined => {
+        return queryClient.setQueryData<TData>(fn.queryKey(input), updater)
+    }
+
+    fn.getData = <TData = unknown>(
+        queryClient: QueryClient,
+        input: { params?: Record<string, string | number>; query?: unknown }
+    ): TData | undefined => {
+        return queryClient.getQueryData<TData>(fn.queryKey(input))
+    }
+
     return fn
 }
+
+const CTX_SYMBOL = Symbol.for('eden-tq-ctx')
 
 function createEdenTQProxy(
     ctx: ProxyContext,
     paths: string[] = []
 ): any {
     return new Proxy(() => {}, {
-        get(_, prop: string): any {
+        get(_, prop: string | symbol): any {
+            if (prop === CTX_SYMBOL) {
+                return ctx
+            }
+
+            if (typeof prop === 'symbol') {
+                return undefined
+            }
+
             if (isHttpMethod(prop)) {
                 return createMethodDecorator(ctx, paths, prop)
             }
@@ -213,5 +298,119 @@ export function createEdenTQ<
     return createEdenTQProxy(ctx) as EdenTQ.Create<App>
 }
 
-export type { EdenTQ, EdenQueryOptions, EdenMutationOptions }
-export type { QueryKey, QueryClient } from '@tanstack/query-core'
+interface UtilsProxyContext extends ProxyContext {
+    queryClient: QueryClient
+}
+
+function createUtilsMethodDecorator(
+    ctx: UtilsProxyContext,
+    paths: string[],
+    method: string
+) {
+    const pathTemplate = [...paths]
+    const baseDecorator = createMethodDecorator(ctx, paths, method)
+
+    const fn = {
+        queryKey: baseDecorator.queryKey,
+        queryOptions: baseDecorator.queryOptions,
+        infiniteQueryOptions: baseDecorator.infiniteQueryOptions,
+        mutationKey: baseDecorator.mutationKey,
+        mutationOptions: baseDecorator.mutationOptions,
+
+        invalidate: async (
+            input?: { params?: Record<string, string | number>; query?: unknown },
+            exact = false
+        ): Promise<void> => {
+            return baseDecorator.invalidate(ctx.queryClient, input, exact)
+        },
+
+        prefetch: async (input: MethodDecoratorInput): Promise<void> => {
+            return baseDecorator.prefetch(ctx.queryClient, input)
+        },
+
+        ensureData: async <TData = unknown>(input: MethodDecoratorInput): Promise<TData> => {
+            return baseDecorator.ensureData<TData>(ctx.queryClient, input)
+        },
+
+        setData: <TData = unknown>(
+            input: { params?: Record<string, string | number>; query?: unknown },
+            updater: TData | ((old: TData | undefined) => TData | undefined)
+        ): TData | undefined => {
+            return baseDecorator.setData<TData>(ctx.queryClient, input, updater)
+        },
+
+        getData: <TData = unknown>(
+            input: { params?: Record<string, string | number>; query?: unknown }
+        ): TData | undefined => {
+            return baseDecorator.getData<TData>(ctx.queryClient, input)
+        },
+
+        cancel: async (
+            input?: { params?: Record<string, string | number>; query?: unknown }
+        ): Promise<void> => {
+            const queryKey = input
+                ? baseDecorator.queryKey(input)
+                : [...ctx.prefix, method, pathTemplate]
+            await ctx.queryClient.cancelQueries({ queryKey })
+        },
+
+        refetch: async (
+            input?: { params?: Record<string, string | number>; query?: unknown }
+        ): Promise<void> => {
+            const queryKey = input
+                ? baseDecorator.queryKey(input)
+                : [...ctx.prefix, method, pathTemplate]
+            await ctx.queryClient.refetchQueries({ queryKey })
+        }
+    }
+
+    return fn
+}
+
+function createEdenTQUtilsProxy(
+    ctx: UtilsProxyContext,
+    paths: string[] = []
+): any {
+    return new Proxy(() => {}, {
+        get(_, prop: string): any {
+            if (isHttpMethod(prop)) {
+                return createUtilsMethodDecorator(ctx, paths, prop)
+            }
+
+            return createEdenTQUtilsProxy(
+                ctx,
+                prop === 'index' ? paths : [...paths, prop]
+            )
+        },
+        apply(_, __, [body]) {
+            if (typeof body === 'object' && body !== null) {
+                const paramValue = Object.values(body)[0] as string
+                return createEdenTQUtilsProxy(ctx, [...paths, paramValue])
+            }
+            return createEdenTQUtilsProxy(ctx, paths)
+        }
+    })
+}
+
+export function createEdenTQUtils<
+    const T extends { readonly '~App': any }
+>(
+    eden: T,
+    queryClient: QueryClient
+): EdenTQUtils.Create<T['~App']> {
+    const ctx = (eden as any)[CTX_SYMBOL] as ProxyContext
+
+    if (!ctx) {
+        throw new Error('Invalid eden instance. Make sure you pass the result of createEdenTQ.')
+    }
+
+    const utilsCtx: UtilsProxyContext = {
+        ...ctx,
+        queryClient
+    }
+
+    return createEdenTQUtilsProxy(utilsCtx) as EdenTQUtils.Create<T['~App']>
+}
+
+export type { EdenTQ, EdenTQUtils, EdenQueryOptions, EdenInfiniteQueryOptions, EdenMutationOptions }
+export type { QueryKey, QueryClient, InfiniteData } from '@tanstack/query-core'
