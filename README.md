@@ -2,6 +2,12 @@
 
 TanStack Query integration for [Elysia Eden](https://github.com/elysiajs/eden) - type-safe queries and mutations with zero boilerplate.
 
+Highlights:
+
+- Auto-generated `queryKey`, `queryOptions`, `mutationOptions`, and cache helpers
+- Type-safe data and error inference from your Elysia routes
+- Works with any TanStack Query adapter (React, Svelte, Vue, Solid)
+
 ## Installation
 
 ```bash
@@ -32,6 +38,18 @@ const query = createQuery(() =>
 )
 
 // query.data is typed as your Elysia response type!
+```
+
+React example:
+
+```ts
+import { useQuery } from '@tanstack/react-query'
+
+const query = useQuery(
+  eden.users({ id: '123' }).get.queryOptions({
+    params: { id: '123' }
+  })
+)
 ```
 
 ### Infinite Queries
@@ -107,6 +125,23 @@ utils.users({ id: '123' }).get.setData({ params: { id: '123' } }, { id: '123', n
 const cached = utils.users({ id: '123' }).get.getData({ params: { id: '123' } })
 ```
 
+### Error Handling
+
+`queryFn` and `mutationFn` throw when the Eden response has `error`, so TanStack
+Query error states are populated automatically:
+
+```ts
+const options = eden.users({ id: '123' }).get.queryOptions({
+  params: { id: '123' }
+})
+
+try {
+  const data = await options.queryFn()
+} catch (error) {
+  // error is typed from your Elysia response map
+}
+```
+
 ## API
 
 ### `createEdenTQ<App>(domain, config?)`
@@ -136,6 +171,20 @@ Each HTTP method (`get`, `post`, `put`, `delete`, `patch`) has:
 | `.ensureData(queryClient, input)` | Ensure data exists or fetch it |
 | `.setData(queryClient, input, updater)` | Manually set cache data |
 | `.getData(queryClient, input)` | Read from cache |
+
+### Query Key Shape
+
+Query keys are deterministic and include routing information:
+
+```
+[
+  ...queryKeyPrefix, // default ['eden']
+  method,            // 'get', 'post', ...
+  pathTemplate,      // e.g. ['users', ':id']
+  params ?? null,
+  query ?? null
+]
+```
 
 ### Query Options Overrides
 

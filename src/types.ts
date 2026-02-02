@@ -155,7 +155,7 @@ export interface EdenTQMethod<
     Headers,
     Query,
     Params,
-    Res extends Record<number, unknown>
+    Res
 > {
     <TQueryFnData = ExtractData<Res>>(
         input: TQMethodParam<Body, Headers, Query, Params>,
@@ -264,7 +264,7 @@ export interface EdenTQUtilsMethod<
     Headers,
     Query,
     Params,
-    Res extends Record<number, unknown>
+    Res
 > {
     queryKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
 
