@@ -6,7 +6,7 @@
  * This file should NOT be run - only type-checked.
  */
 import { Elysia, t } from 'elysia'
-import { createEdenTQ } from '../../src'
+import { createEdenTQ, createEdenTQUtils } from '../../src'
 import { QueryClient } from '@tanstack/query-core'
 import { expectTypeOf } from 'expect-type'
 
@@ -192,4 +192,30 @@ async function testQueryClientIntegration() {
 
     expectTypeOf<MutationResult>().not.toBeNever()
     expectTypeOf<MutationResult>().toMatchTypeOf<{ id: string; name: string }>()
+}
+
+// ============================================================================
+// Test: EdenTQUtils methods don't become never with non-record responses
+// ============================================================================
+{
+    const app = new Elysia()
+        .get('/hello', () => ({ ok: true }), {
+            response: t.Object({ ok: t.Boolean() })
+        })
+        .post('/echo', ({ body }) => body, {
+            body: t.Object({ message: t.String() }),
+            response: t.Object({ message: t.String() })
+        })
+
+    const eden = createEdenTQ<typeof app>('http://localhost:3000')
+    const queryClient = new QueryClient()
+    const utils = createEdenTQUtils(eden, queryClient)
+
+    const helloOptions = utils.hello.get.queryOptions({})
+    type HelloData = Awaited<ReturnType<typeof helloOptions.queryFn>>
+    expectTypeOf<HelloData>().not.toBeNever()
+
+    const echoOptions = utils.echo.post.mutationOptions()
+    type EchoResult = Awaited<ReturnType<typeof echoOptions.mutationFn>>
+    expectTypeOf<EchoResult>().not.toBeNever()
 }
