@@ -31,12 +31,12 @@
 		"type-safe",
 		"rpc"
 	],
-	"homepage": "https://github.com/Frank-III/eden",
+	"homepage": "https://github.com/Frank-III/eden-tanstack-query",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Frank-III/eden"
+		"url": "git+https://github.com/Frank-III/eden-tanstack-query.git"
 	},
-	"bugs": "https://github.com/Frank-III/eden/issues",
+	"bugs": "https://github.com/Frank-III/eden-tanstack-query/issues",
 	"license": "MIT",
 	"scripts": {
 		"build": "tsdown",
