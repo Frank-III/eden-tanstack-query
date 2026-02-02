@@ -29,26 +29,26 @@ type IntegerRange<F extends number, T extends number> = Exclude<
 
 type SuccessCodeRange = IntegerRange<200, 300>
 
-type ExtractData<Res extends Record<number, unknown>> =
-    Res[Extract<keyof Res, SuccessCodeRange>] extends {
-        [ELYSIA_FORM_DATA]: infer Data
-    }
+type ExtractData<Res> = Res extends Record<number, unknown>
+    ? Res[Extract<keyof Res, SuccessCodeRange>] extends {
+          [ELYSIA_FORM_DATA]: infer Data
+      }
         ? Data
         : Res[Extract<keyof Res, SuccessCodeRange>]
+    : unknown
 
-type ExtractError<Res extends Record<number, unknown>> = Exclude<
-    keyof Res,
-    SuccessCodeRange
-> extends never
-    ? { status: unknown; value: unknown }
-    : {
-          [Status in keyof Res]: {
-              status: Status
-              value: Res[Status] extends { [ELYSIA_FORM_DATA]: infer Data }
-                  ? Data
-                  : Res[Status]
-          }
-      }[Exclude<keyof Res, SuccessCodeRange>]
+type ExtractError<Res> = Res extends Record<number, unknown>
+    ? Exclude<keyof Res, SuccessCodeRange> extends never
+        ? { status: unknown; value: unknown }
+        : {
+              [Status in keyof Res]: {
+                  status: Status
+                  value: Res[Status] extends { [ELYSIA_FORM_DATA]: infer Data }
+                      ? Data
+                      : Res[Status]
+              }
+          }[Exclude<keyof Res, SuccessCodeRange>]
+    : { status: unknown; value: unknown }
 
 interface TQParamBase {
     fetch?: RequestInit
