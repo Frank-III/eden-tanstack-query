@@ -234,7 +234,7 @@ export namespace EdenTQ {
             headers: infer Headers
             params: infer Params
             query: infer Query
-            response: infer Res extends Record<number, unknown>
+            response: infer Res
         }
             ? EdenTQMethod<Body, Headers, Query, Params, Res>
             : CreateParams<Route[K]>
@@ -337,7 +337,7 @@ export namespace EdenTQUtils {
             headers: infer Headers
             params: infer Params
             query: infer Query
-            response: infer Res extends Record<number, unknown>
+            response: infer Res
         }
             ? EdenTQUtilsMethod<Body, Headers, Query, Params, Res>
             : CreateParams<Route[K]>
