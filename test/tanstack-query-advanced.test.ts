@@ -245,6 +245,13 @@ describe('EdenTQ Utils', () => {
         expect(data).toEqual({ id: 'deferred-42', name: 'John' })
     })
 
+    it('returns undefined for symbol property access on utils proxy', () => {
+        const queryClient = new QueryClient()
+        const utils = createEdenTQUtils(eden, queryClient)
+
+        expect((utils as any)[Symbol.toStringTag]).toBeUndefined()
+    })
+
     it('cancel cancels in-flight queries', async () => {
         const queryClient = new QueryClient()
         const utils = createEdenTQUtils(eden, queryClient)

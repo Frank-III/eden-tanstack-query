@@ -157,9 +157,19 @@ function createMethodDecorator(
 ) {
     const pathTemplate = [...paths]
 
-    const fn = (input?: MethodDecoratorInput) => {
-        const materializedPath = materializePath(pathTemplate, input?.params)
-        return callTreaty(ctx.raw, materializedPath, method, input)
+    const fn = (input?: MethodDecoratorInput, options?: RequestInit) => {
+        const mergedInput = options
+            ? {
+                  ...(input ?? {}),
+                  fetch: {
+                      ...(input?.fetch ?? {}),
+                      ...options
+                  }
+              }
+            : input
+
+        const materializedPath = materializePath(pathTemplate, mergedInput?.params)
+        return callTreaty(ctx.raw, materializedPath, method, mergedInput)
     }
 
     fn.queryKey = (
@@ -405,7 +415,11 @@ function createEdenTQUtilsProxy(
     paths: string[] = []
 ): any {
     return new Proxy(() => {}, {
-        get(_, prop: string): any {
+        get(_, prop: string | symbol): any {
+            if (typeof prop === 'symbol') {
+                return undefined
+            }
+
             if (isHttpMethod(prop)) {
                 return createUtilsMethodDecorator(ctx, paths, prop)
             }

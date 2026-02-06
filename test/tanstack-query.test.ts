@@ -4,6 +4,7 @@ import { describe, expect, it, mock, test } from 'bun:test'
 
 const app = new Elysia()
     .get('/', () => 'hello')
+    .get('/header-echo', ({ headers }) => headers['x-test'] ?? null)
     .get('/user/:id', ({ params }) => ({ id: params.id, name: 'John' }))
     .post('/user', ({ body }) => ({ id: '1', ...body }), {
         body: t.Object({
@@ -182,6 +183,17 @@ describe('createEdenTQ', () => {
 
             expect(result.data).toBeNull()
             expect(result.error).not.toBeNull()
+        })
+
+        it('uses direct call RequestInit options as fetch options', async () => {
+            const result = await eden['header-echo'].get({}, {
+                headers: {
+                    'x-test': 'via-direct-options'
+                }
+            })
+
+            expect(result.data).toBe('via-direct-options')
+            expect(result.error).toBeNull()
         })
     })
 
