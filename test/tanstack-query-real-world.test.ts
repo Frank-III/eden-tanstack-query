@@ -142,6 +142,25 @@ describe('Real-world API patterns', () => {
 
             expect(options.queryKey).toEqual(['cases', caseId, 'share-links'])
         })
+
+        it('supports deferred path params when placeholder value is empty', async () => {
+            const caseId = 'case-deferred-query'
+
+            const options = eden.cases({ id: '' })['share-links'].get.queryOptions({
+                params: { id: caseId }
+            })
+
+            expect(options.queryKey).toEqual([
+                'eden',
+                'get',
+                ['cases', ':id', 'share-links'],
+                { id: caseId },
+                null
+            ])
+
+            const result = await options.queryFn()
+            expect(result.data[0].url).toContain(`/${caseId}/`)
+        })
     })
 
     describe('Create Share Link Mutation', () => {
@@ -176,6 +195,19 @@ describe('Real-world API patterns', () => {
                 expiresInDays: number
                 contact: { id: string; email: string | null; name: string } | null
             }>()
+        })
+
+        it('uses mutation params when placeholder value is empty', async () => {
+            const caseId = 'case-deferred-mutation'
+
+            const options = eden.cases({ id: '' })['share-link'].post.mutationOptions()
+            const result = await options.mutationFn({
+                params: { id: caseId },
+                body: { expiresInDays: 7 }
+            })
+
+            expect(result.url).toContain(`/${caseId}/`)
+            expect(result.expiresInDays).toBe(7)
         })
     })
 

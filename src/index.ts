@@ -114,6 +114,22 @@ function withContextSignal(
     }
 }
 
+function resolvePathSegmentFromCallArg(body: unknown): string | undefined {
+    if (typeof body !== 'object' || body === null) return undefined
+
+    const entries = Object.entries(body as Record<string, unknown>)
+    if (entries.length === 0) return undefined
+
+    const [paramName, paramValue] = entries[0]
+
+    // Keep dynamic placeholder when call-site intentionally passes an empty value.
+    if (paramValue === '' || paramValue == null) {
+        return `:${paramName}`
+    }
+
+    return String(paramValue)
+}
+
 interface ProxyContext {
     raw: any
     prefix: QueryKey
@@ -288,9 +304,9 @@ function createEdenTQProxy(
             )
         },
         apply(_, __, [body]) {
-            if (typeof body === 'object' && body !== null) {
-                const paramValue = Object.values(body)[0] as string
-                return createEdenTQProxy(ctx, [...paths, paramValue])
+            const paramSegment = resolvePathSegmentFromCallArg(body)
+            if (paramSegment !== undefined) {
+                return createEdenTQProxy(ctx, [...paths, paramSegment])
             }
             return createEdenTQProxy(ctx, paths)
         }
@@ -400,9 +416,9 @@ function createEdenTQUtilsProxy(
             )
         },
         apply(_, __, [body]) {
-            if (typeof body === 'object' && body !== null) {
-                const paramValue = Object.values(body)[0] as string
-                return createEdenTQUtilsProxy(ctx, [...paths, paramValue])
+            const paramSegment = resolvePathSegmentFromCallArg(body)
+            if (paramSegment !== undefined) {
+                return createEdenTQUtilsProxy(ctx, [...paths, paramSegment])
             }
             return createEdenTQUtilsProxy(ctx, paths)
         }

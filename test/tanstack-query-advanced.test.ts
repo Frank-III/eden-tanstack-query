@@ -234,6 +234,17 @@ describe('EdenTQ Utils', () => {
         expect(data).toEqual({ id: '42', name: 'John' })
     })
 
+    it('supports deferred params in utils route calls', async () => {
+        const queryClient = new QueryClient()
+        const utils = createEdenTQUtils(eden, queryClient)
+
+        const data = await utils.user({ id: '' }).get.ensureData({
+            params: { id: 'deferred-42' }
+        })
+
+        expect(data).toEqual({ id: 'deferred-42', name: 'John' })
+    })
+
     it('cancel cancels in-flight queries', async () => {
         const queryClient = new QueryClient()
         const utils = createEdenTQUtils(eden, queryClient)
