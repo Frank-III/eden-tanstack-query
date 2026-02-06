@@ -88,6 +88,43 @@ mutation.mutate({
 })
 ```
 
+### Path Params: Inline vs Deferred
+
+For routes like `/cases/:id/workflow`, you can now choose either pattern:
+
+Inline param (known when building options):
+
+```ts
+const query = eden.cases({ id: 'case-123' }).workflow.get.queryOptions({
+  params: { id: 'case-123' }
+})
+
+const mutation = eden.cases({ id: 'case-123' }).workflow.patch.mutationOptions()
+await mutation.mutationFn({
+  params: { id: 'case-123' },
+  body: { status: 'active' }
+})
+```
+
+Deferred param (ID known later at call time):
+
+```ts
+const query = eden.cases({ id: '' }).workflow.get.queryOptions({
+  params: { id: caseId }
+})
+
+const mutation = eden.cases({ id: '' }).workflow.patch.mutationOptions()
+await mutation.mutationFn({
+  params: { id: caseId },
+  body: { status: 'active' }
+})
+```
+
+Recommendation:
+
+- Use inline params when the route ID is already available.
+- Use deferred params when creating reusable query/mutation configs before the ID is known.
+
 ### Invalidation
 
 ```ts
