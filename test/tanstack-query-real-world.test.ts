@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { createEdenTQ } from '../src'
-import { describe, expect, it, beforeAll, afterAll, mock, test } from 'bun:test'
+import { describe, expect, it, mock, test } from 'bun:test'
 import { expectTypeOf } from 'expect-type'
 
 const ShareLinkSchema = t.Object({
@@ -93,19 +93,9 @@ const app = new Elysia()
         })
     )
 
-let server: ReturnType<typeof app.listen>
-
-beforeAll(() => {
-    server = app.listen(3457)
-})
-
-afterAll(() => {
-    server.stop()
-})
+const eden = createEdenTQ<typeof app>(app)
 
 describe('Real-world API patterns', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3457')
-
     describe('Share Links Query', () => {
         it('generates correct queryOptions with type-safe response', async () => {
             const caseId = 'case-123'
@@ -293,8 +283,6 @@ describe('Real-world API patterns', () => {
 })
 
 describe('Comparison: Before vs After', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3457')
-
     it('shows the difference in boilerplate', async () => {
         const caseId = 'demo-case'
 

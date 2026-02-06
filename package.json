@@ -40,7 +40,8 @@
 	"license": "MIT",
 	"scripts": {
 		"build": "tsdown",
-		"test": "bun test",
+		"test": "bun test && bun run test:types",
+		"test:types": "bunx tsc --project tsconfig.test.json",
 		"prepublishOnly": "bun run build"
 	},
 	"peerDependencies": {

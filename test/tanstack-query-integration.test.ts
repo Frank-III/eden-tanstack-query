@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { createEdenTQ } from '../src'
 import { QueryClient } from '@tanstack/query-core'
-import { describe, expect, it, beforeAll, afterAll, test } from 'bun:test'
+import { describe, expect, it, test } from 'bun:test'
 import { expectTypeOf } from 'expect-type'
 
 const ShareLinkSchema = t.Object({
@@ -108,19 +108,9 @@ const app = new Elysia()
         })
     )
 
-let server: ReturnType<typeof app.listen>
-
-beforeAll(() => {
-    server = app.listen(3458)
-})
-
-afterAll(() => {
-    server.stop()
-})
+const eden = createEdenTQ<typeof app>(app)
 
 describe('TanStack Query Integration', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3458')
-
     describe('Works with real QueryClient', () => {
         it('queryOptions works with QueryClient.fetchQuery', async () => {
             const queryClient = new QueryClient()
@@ -289,8 +279,6 @@ describe('TanStack Query Integration', () => {
 })
 
 describe('Usage Examples - Before vs After', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3458')
-
     test('Share Links Query - shows reduced boilerplate', async () => {
         const caseId = 'demo-case'
 

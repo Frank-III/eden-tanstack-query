@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { createEdenTQ } from '../src'
-import { describe, expect, it, beforeAll, afterAll, mock, test } from 'bun:test'
+import { describe, expect, it, mock, test } from 'bun:test'
 
 const app = new Elysia()
     .get('/', () => 'hello')
@@ -23,18 +23,8 @@ const app = new Elysia()
         })
     })
 
-let server: ReturnType<typeof app.listen>
-
-beforeAll(() => {
-    server = app.listen(3456)
-})
-
-afterAll(() => {
-    server.stop()
-})
-
 describe('createEdenTQ', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3456')
+    const eden = createEdenTQ<typeof app>(app)
 
     describe('queryKey', () => {
         it('generates query key for simple route', () => {

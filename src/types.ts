@@ -50,6 +50,10 @@ type ExtractError<Res> = Res extends Record<number, unknown>
           }[Exclude<keyof Res, SuccessCodeRange>]
     : { status: unknown; value: unknown }
 
+type TreatyResponseMap<Res> = Res extends Record<number, unknown>
+    ? Res
+    : Record<number, unknown>
+
 interface TQParamBase {
     fetch?: RequestInit
 }
@@ -93,7 +97,7 @@ type TQMethodParam<
 
 export interface EdenQueryOptions<TData = unknown, TError = unknown> {
     queryKey: QueryKey
-    queryFn: () => Promise<TData>
+    queryFn: (context?: QueryFunctionContext<QueryKey>) => Promise<TData>
     enabled?: boolean
     staleTime?: number
     gcTime?: number
@@ -160,7 +164,7 @@ export interface EdenTQMethod<
     <TQueryFnData = ExtractData<Res>>(
         input: TQMethodParam<Body, Headers, Query, Params>,
         options?: RequestInit
-    ): Promise<Treaty.TreatyResponse<Res>>
+    ): Promise<Treaty.TreatyResponse<TreatyResponseMap<Res>>>
 
     queryKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
 

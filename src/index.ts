@@ -103,6 +103,17 @@ async function dataOrThrow<T>(
     return result.data as T
 }
 
+function withContextSignal(
+    fetch: RequestInit | undefined,
+    signal: AbortSignal | undefined
+): RequestInit | undefined {
+    if (!signal || fetch?.signal) return fetch
+    return {
+        ...(fetch ?? {}),
+        signal
+    }
+}
+
 interface ProxyContext {
     raw: any
     prefix: QueryKey
@@ -147,9 +158,14 @@ function createMethodDecorator(
     ): EdenQueryOptions<TData> => {
         return {
             queryKey: fn.queryKey(input),
-            queryFn: () => {
+            queryFn: (context) => {
                 const materializedPath = materializePath(pathTemplate, input?.params)
-                return dataOrThrow(callTreaty(ctx.raw, materializedPath, method, input))
+                return dataOrThrow(
+                    callTreaty(ctx.raw, materializedPath, method, {
+                        ...input,
+                        fetch: withContextSignal(input.fetch, context?.signal)
+                    })
+                )
             },
             ...overrides
         }
@@ -172,7 +188,8 @@ function createMethodDecorator(
                 }
                 return dataOrThrow<TData>(callTreaty(ctx.raw, materializedPath, method, {
                     ...input,
-                    query: queryWithCursor
+                    query: queryWithCursor,
+                    fetch: withContextSignal(input.fetch, context.signal)
                 }))
             },
             initialPageParam: opts.initialPageParam,

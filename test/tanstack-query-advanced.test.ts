@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { createEdenTQ, createEdenTQUtils } from '../src'
 import { QueryClient } from '@tanstack/query-core'
-import { describe, expect, it, beforeAll, afterAll, mock, test } from 'bun:test'
+import { describe, expect, it, mock, test } from 'bun:test'
 
 const posts = Array.from({ length: 50 }, (_, i) => ({
     id: `post-${i + 1}`,
@@ -53,21 +53,11 @@ const app = new Elysia()
         query: t.Object({
             page: t.Optional(t.String())
         })
-    })
-
-let server: ReturnType<typeof app.listen>
-
-beforeAll(() => {
-    server = app.listen(3459)
 })
 
-afterAll(() => {
-    server.stop()
-})
+const eden = createEdenTQ<typeof app>(app)
 
 describe('Infinite Query', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3459')
-
     it('generates infiniteQueryOptions with cursor pagination', async () => {
         const options = eden.posts.get.infiniteQueryOptions(
             { query: { limit: '5' } },
@@ -187,8 +177,6 @@ describe('Infinite Query', () => {
 })
 
 describe('EdenTQ Utils', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3459')
-
     it('creates utils with bound QueryClient', () => {
         const queryClient = new QueryClient()
         const utils = createEdenTQUtils(eden, queryClient)
@@ -267,8 +255,6 @@ describe('EdenTQ Utils', () => {
 })
 
 describe('Prefetch and Cache helpers on EdenTQ', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3459')
-
     it('prefetch works directly on eden', async () => {
         const queryClient = new QueryClient()
 
@@ -302,8 +288,6 @@ describe('Prefetch and Cache helpers on EdenTQ', () => {
 })
 
 describe('Query Options extensions', () => {
-    const eden = createEdenTQ<typeof app>('http://localhost:3459')
-
     it('queryOptions accepts extended options', () => {
         const options = eden.get.queryOptions({}, {
             staleTime: 1000,
