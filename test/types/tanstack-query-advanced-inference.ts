@@ -25,8 +25,8 @@ import { expectTypeOf } from 'expect-type'
 
     expectTypeOf<Options['queryKey']>().toMatchTypeOf<QueryKey>()
     expectTypeOf<Options['queryFn']>().toMatchTypeOf<() => Promise<{ id: string }>>()
-    expectTypeOf<Options['enabled']>().toMatchTypeOf<boolean | undefined>()
-    expectTypeOf<Options['staleTime']>().toMatchTypeOf<number | undefined>()
+    expectTypeOf<Options['enabled']>().toMatchTypeOf<boolean | Function | undefined>()
+    expectTypeOf<Options['staleTime']>().toMatchTypeOf<number | 'static' | Function | undefined>()
     expectTypeOf<Options['gcTime']>().toMatchTypeOf<number | undefined>()
 }
 
@@ -34,7 +34,13 @@ import { expectTypeOf } from 'expect-type'
 // Test: EdenInfiniteQueryOptions structure
 // ============================================================================
 {
-    type Options = EdenInfiniteQueryOptions<{ items: string[] }, Error, number>
+    type Options = EdenInfiniteQueryOptions<
+        { items: string[] },
+        Error,
+        { items: string[] },
+        QueryKey,
+        number
+    >
 
     expectTypeOf<Options['queryKey']>().toMatchTypeOf<QueryKey>()
     expectTypeOf<Options['queryFn']>().toBeFunction()

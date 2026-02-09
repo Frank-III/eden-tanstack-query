@@ -136,11 +136,20 @@ describe('Real-world API patterns', () => {
             const options = eden.cases({ id: caseId })['share-links'].get.queryOptions(
                 { params: { id: caseId } },
                 {
-                    queryKey: ['cases', caseId, 'share-links']
+                    staleTime: 10_000,
+                    gcTime: 20_000
                 }
             )
 
-            expect(options.queryKey).toEqual(['cases', caseId, 'share-links'])
+            expect(options.queryKey).toEqual([
+                'eden',
+                'get',
+                ['cases', caseId, 'share-links'],
+                { id: caseId },
+                null
+            ])
+            expect(options.staleTime).toBe(10_000)
+            expect(options.gcTime).toBe(20_000)
         })
 
         it('supports deferred path params when placeholder value is empty', async () => {

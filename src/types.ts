@@ -1,13 +1,15 @@
-import type { Elysia, ELYSIA_FORM_DATA } from 'elysia'
 import type {
     QueryKey,
     QueryClient,
     InfiniteData,
+    DataTag,
+    QueryObserverOptions,
+    InfiniteQueryObserverOptions,
+    MutationObserverOptions,
     GetNextPageParamFunction,
     GetPreviousPageParamFunction,
     QueryFunctionContext
 } from '@tanstack/query-core'
-import type { Treaty } from '@elysiajs/eden/treaty2'
 
 type IsNever<T> = [T] extends [never] ? true : false
 
@@ -15,44 +17,112 @@ type Prettify<T> = {
     [K in keyof T]: T[K]
 } & {}
 
-type Enumerate<
-    N extends number,
-    Acc extends number[] = []
-> = Acc['length'] extends N
-    ? Acc[number]
-    : Enumerate<N, [...Acc, Acc['length']]>
+type UnionToIntersection<U> =
+    (U extends any ? (arg: U) => void : never) extends (arg: infer I) => void
+        ? I
+        : never
 
-type IntegerRange<F extends number, T extends number> = Exclude<
-    Enumerate<T>,
-    Enumerate<F>
+export interface EdenAppLike<
+    Routes extends Record<any, any> = Record<any, any>
+> {
+    '~Routes': Routes
+}
+
+type NormalizeRouteSchema<Schema extends Record<any, any>> = UnionToIntersection<Schema> extends infer Merged
+    ? Merged extends Record<any, any>
+        ? Merged
+        : never
+    : never
+
+type ExtractRouteSchema<App extends EdenAppLike<any>> =
+    [App] extends [EdenAppLike<infer Schema extends Record<any, any>>]
+        ? NormalizeRouteSchema<Schema>
+        : never
+
+type SymbolValue<T> = T extends Record<PropertyKey, unknown>
+    ? {
+          [K in keyof T]: K extends symbol ? T[K] : never
+      }[keyof T]
+    : never
+
+type UnwrapFormData<T> = [SymbolValue<T>] extends [never]
+    ? T
+    : SymbolValue<T>
+
+type NormalizedStatusCode<Status> = Status extends number
+    ? Status
+    : Status extends `${infer Code extends number}`
+      ? Code
+      : never
+
+type SuccessStatusKey<Res extends Record<number, unknown>> = {
+    [Status in keyof Res]: `${NormalizedStatusCode<Status>}` extends `2${string}`
+        ? Status
+        : never
+}[keyof Res]
+
+type SuccessStatusData<Res extends Record<number, unknown>> = [SuccessStatusKey<Res>] extends [never]
+    ? unknown
+    : Res[SuccessStatusKey<Res>]
+
+type ErrorStatusKey<Res extends Record<number, unknown>> = Exclude<
+    keyof Res,
+    SuccessStatusKey<Res>
 >
 
-type SuccessCodeRange = IntegerRange<200, 300>
-
 type ExtractData<Res> = Res extends Record<number, unknown>
-    ? Res[Extract<keyof Res, SuccessCodeRange>] extends {
-          [ELYSIA_FORM_DATA]: infer Data
-      }
-        ? Data
-        : Res[Extract<keyof Res, SuccessCodeRange>]
+    ? UnwrapFormData<SuccessStatusData<Res>>
     : unknown
 
 type ExtractError<Res> = Res extends Record<number, unknown>
-    ? Exclude<keyof Res, SuccessCodeRange> extends never
+    ? [ErrorStatusKey<Res>] extends [never]
         ? { status: unknown; value: unknown }
         : {
-              [Status in keyof Res]: {
+              [Status in ErrorStatusKey<Res>]: {
                   status: Status
-                  value: Res[Status] extends { [ELYSIA_FORM_DATA]: infer Data }
-                      ? Data
-                      : Res[Status]
+                  value: UnwrapFormData<Res[Status]>
               }
-          }[Exclude<keyof Res, SuccessCodeRange>]
+          }[ErrorStatusKey<Res>]
     : { status: unknown; value: unknown }
 
 type TreatyResponseMap<Res> = Res extends Record<number, unknown>
     ? Res
     : Record<number, unknown>
+
+type MaybeArray<T> = T | T[]
+type MaybePromise<T> = T | Promise<T>
+
+export interface EdenTreatyConfig {
+    fetch?: Omit<RequestInit, 'headers' | 'method'>
+    fetcher?: typeof fetch
+    headers?: MaybeArray<
+        | RequestInit['headers']
+        | ((path: string, options: RequestInit) => MaybePromise<RequestInit['headers'] | void>)
+    >
+    onRequest?: MaybeArray<
+        (path: string, options: RequestInit) => MaybePromise<RequestInit | void>
+    >
+    onResponse?: MaybeArray<(response: Response) => MaybePromise<unknown>>
+    keepDomain?: boolean
+}
+
+type EdenRawResponseMap<Res extends Record<number, unknown>> =
+    | {
+          data: UnwrapFormData<SuccessStatusData<Res>>
+          error: null
+          response: Response
+          status: number
+          headers: ResponseInit['headers']
+      }
+    | {
+          data: null
+          error: ExtractError<Res>
+          response: Response
+          status: number
+          headers: ResponseInit['headers']
+      }
+
+export type EdenRawResponse<Res> = EdenRawResponseMap<TreatyResponseMap<Res>>
 
 interface TQParamBase {
     fetch?: RequestInit
@@ -95,56 +165,104 @@ type TQMethodParam<
     MaybeEmptyObject<Body, 'body'> &
     TQParamBase
 
-export interface EdenQueryOptions<TData = unknown, TError = unknown> {
-    queryKey: QueryKey
-    queryFn: (context?: QueryFunctionContext<QueryKey>) => Promise<TData>
-    enabled?: boolean
-    staleTime?: number
-    gcTime?: number
-    refetchOnMount?: boolean | 'always'
-    refetchOnWindowFocus?: boolean | 'always'
-    refetchOnReconnect?: boolean | 'always'
-    refetchInterval?: number | false
-    retry?: boolean | number | ((failureCount: number, error: TError) => boolean)
-    retryDelay?: number | ((failureCount: number, error: TError) => number)
-    placeholderData?: TData | (() => TData | undefined)
+type OmitQueryInput<T> = Omit<T, 'body' | 'headers' | 'fetch'>
+
+type EdenMethodBaseQueryKey<
+    Params,
+    Query
+> = readonly [
+    ...QueryKey,
+    string,
+    readonly string[],
+    Params | null,
+    SerializeQueryParams<Query> | null
+]
+
+type EdenMethodQueryKey<
+    Params,
+    Query,
+    Res
+> = DataTag<
+    EdenMethodBaseQueryKey<Params, Query>,
+    ExtractData<Res>,
+    ExtractError<Res>
+>
+
+type EdenMethodInfiniteQueryKey<
+    Params,
+    Query,
+    Res,
+    TPageParam
+> = DataTag<
+    EdenMethodBaseQueryKey<Params, Query>,
+    InfiniteData<ExtractData<Res>, TPageParam>,
+    ExtractError<Res>
+>
+
+export interface EdenQueryOptions<
+    TQueryFnData = unknown,
+    TError = unknown,
+    TData = TQueryFnData,
+    TQueryKey extends QueryKey = QueryKey
+> extends Omit<
+    QueryObserverOptions<TQueryFnData, TError, TData, TQueryFnData, TQueryKey>,
+    'queryKey' | 'queryFn' | 'persister'
+> {
+    queryKey: TQueryKey
+    queryFn: (context?: QueryFunctionContext<TQueryKey>) => Promise<TQueryFnData>
 }
 
 export interface EdenInfiniteQueryOptions<
-    TData = unknown,
+    TQueryFnData = unknown,
     TError = unknown,
+    TData = TQueryFnData,
+    TQueryKey extends QueryKey = QueryKey,
     TPageParam = unknown
+> extends Omit<
+    InfiniteQueryObserverOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>,
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam' | 'persister'
 > {
-    queryKey: QueryKey
-    queryFn: (context: QueryFunctionContext<QueryKey, TPageParam>) => Promise<TData>
+    queryKey: TQueryKey
+    queryFn: (context: QueryFunctionContext<TQueryKey, TPageParam>) => Promise<TQueryFnData>
     initialPageParam: TPageParam
-    getNextPageParam: GetNextPageParamFunction<TPageParam, TData>
-    getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, TData>
-    enabled?: boolean
-    staleTime?: number
-    gcTime?: number
-    refetchOnMount?: boolean | 'always'
-    refetchOnWindowFocus?: boolean | 'always'
-    refetchOnReconnect?: boolean | 'always'
-    maxPages?: number
+    getNextPageParam: GetNextPageParamFunction<TPageParam, TQueryFnData>
+    getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, TQueryFnData>
 }
 
 export interface EdenMutationOptions<
     TData = unknown,
     TError = unknown,
-    TVariables = unknown
+    TVariables = unknown,
+    TOnMutateResult = unknown
+> extends Omit<
+    MutationObserverOptions<TData, TError, TVariables, TOnMutateResult>,
+    'mutationKey' | 'mutationFn'
 > {
     mutationKey: QueryKey
     mutationFn: (variables: TVariables) => Promise<TData>
-    onMutate?: (variables: TVariables) => Promise<unknown> | unknown
-    onSuccess?: (data: TData, variables: TVariables, context: unknown) => Promise<unknown> | unknown
-    onError?: (error: TError, variables: TVariables, context: unknown) => Promise<unknown> | unknown
-    onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, context: unknown) => Promise<unknown> | unknown
-    retry?: boolean | number | ((failureCount: number, error: TError) => boolean)
-    retryDelay?: number | ((failureCount: number, error: TError) => number)
 }
 
-type OmitQueryInput<T> = Omit<T, 'body' | 'headers' | 'fetch'>
+type EdenQueryOverrides<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey extends QueryKey
+> = Partial<Omit<EdenQueryOptions<TQueryFnData, TError, TData, TQueryKey>, 'queryKey' | 'queryFn'>>
+
+type EdenInfiniteQueryOverrides<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryKey extends QueryKey,
+    TPageParam
+> = Partial<Omit<EdenInfiniteQueryOptions<TQueryFnData, TError, TData, TQueryKey, TPageParam>, 'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'>>
+
+type EdenMutationOverrides<
+    TData,
+    TError,
+    TVariables,
+    TOnMutateResult
+> = Partial<Omit<EdenMutationOptions<TData, TError, TVariables, TOnMutateResult>, 'mutationKey' | 'mutationFn'>>
 
 export interface InfiniteQueryInput<TPageParam, Query, Params> {
     params?: Params
@@ -164,31 +282,65 @@ export interface EdenTQMethod<
     <TQueryFnData = ExtractData<Res>>(
         input: TQMethodParam<Body, Headers, Query, Params>,
         options?: RequestInit
-    ): Promise<Treaty.TreatyResponse<TreatyResponseMap<Res>>>
+    ): Promise<EdenRawResponse<Res>>
 
-    queryKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
+    queryKey(
+        input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>
+    ): EdenMethodQueryKey<Params, Query, Res>
 
     queryOptions<TData = ExtractData<Res>>(
         input: TQMethodParam<Body, Headers, Query, Params>,
-        overrides?: Partial<EdenQueryOptions<TData, ExtractError<Res>>>
-    ): EdenQueryOptions<TData, ExtractError<Res>>
+        overrides?: EdenQueryOverrides<
+            ExtractData<Res>,
+            ExtractError<Res>,
+            TData,
+            EdenMethodQueryKey<Params, Query, Res>
+        >
+    ): EdenQueryOptions<
+        ExtractData<Res>,
+        ExtractError<Res>,
+        TData,
+        EdenMethodQueryKey<Params, Query, Res>
+    >
 
     infiniteQueryOptions<TData = ExtractData<Res>, TPageParam = unknown>(
         input: InfiniteQueryInput<TPageParam, Query, Params>,
         opts: {
             initialPageParam: TPageParam
-            getNextPageParam: GetNextPageParamFunction<TPageParam, TData>
-            getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, TData>
+            getNextPageParam: GetNextPageParamFunction<TPageParam, ExtractData<Res>>
+            getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, ExtractData<Res>>
             cursorKey?: string
         },
-        overrides?: Partial<Omit<EdenInfiniteQueryOptions<TData, ExtractError<Res>, TPageParam>, 'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'>>
-    ): EdenInfiniteQueryOptions<TData, ExtractError<Res>, TPageParam>
+        overrides?: EdenInfiniteQueryOverrides<
+            ExtractData<Res>,
+            ExtractError<Res>,
+            TData,
+            EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
+            TPageParam
+        >
+    ): EdenInfiniteQueryOptions<
+        ExtractData<Res>,
+        ExtractError<Res>,
+        TData,
+        EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
+        TPageParam
+    >
 
     mutationKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
 
-    mutationOptions<TData = ExtractData<Res>>(
-        overrides?: Partial<EdenMutationOptions<TData, ExtractError<Res>, TQMethodParam<Body, Headers, Query, Params>>>
-    ): EdenMutationOptions<TData, ExtractError<Res>, TQMethodParam<Body, Headers, Query, Params>>
+    mutationOptions<TData = ExtractData<Res>, TOnMutateResult = unknown>(
+        overrides?: EdenMutationOverrides<
+            TData,
+            ExtractError<Res>,
+            TQMethodParam<Body, Headers, Query, Params>,
+            TOnMutateResult
+        >
+    ): EdenMutationOptions<
+        TData,
+        ExtractError<Res>,
+        TQMethodParam<Body, Headers, Query, Params>,
+        TOnMutateResult
+    >
 
     invalidate(
         queryClient: QueryClient,
@@ -219,16 +371,17 @@ export interface EdenTQMethod<
 }
 
 export namespace EdenTQ {
-    export type Config = Treaty.Config & {
+    export type Config = EdenTreatyConfig & {
         queryKeyPrefix?: QueryKey
     }
 
-    export type Create<App extends Elysia<any, any, any, any, any, any, any>> =
-        App extends {
-            '~Routes': infer Schema extends Record<any, any>
-        }
-            ? Prettify<Sign<Schema>> & CreateParams<Schema> & { readonly '~App': App }
-            : 'Please install Elysia before using Eden'
+    export type Create<App extends EdenAppLike<any>> =
+        Prettify<Sign<ExtractRouteSchema<App>>> &
+            CreateParams<ExtractRouteSchema<App>> & { readonly '~App': App }
+
+    export type CreateFromSchema<Schema extends Record<any, any>> =
+        Prettify<Sign<NormalizeRouteSchema<Schema>>> &
+            CreateParams<NormalizeRouteSchema<Schema>> & { readonly '~App': EdenAppLike<Schema> }
 
     export type Sign<in out Route extends Record<any, any>> = {
         [K in keyof Route as K extends `:${string}`
@@ -270,29 +423,63 @@ export interface EdenTQUtilsMethod<
     Params,
     Res
 > {
-    queryKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
+    queryKey(
+        input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>
+    ): EdenMethodQueryKey<Params, Query, Res>
 
     queryOptions<TData = ExtractData<Res>>(
         input: TQMethodParam<Body, Headers, Query, Params>,
-        overrides?: Partial<EdenQueryOptions<TData, ExtractError<Res>>>
-    ): EdenQueryOptions<TData, ExtractError<Res>>
+        overrides?: EdenQueryOverrides<
+            ExtractData<Res>,
+            ExtractError<Res>,
+            TData,
+            EdenMethodQueryKey<Params, Query, Res>
+        >
+    ): EdenQueryOptions<
+        ExtractData<Res>,
+        ExtractError<Res>,
+        TData,
+        EdenMethodQueryKey<Params, Query, Res>
+    >
 
     infiniteQueryOptions<TData = ExtractData<Res>, TPageParam = unknown>(
         input: InfiniteQueryInput<TPageParam, Query, Params>,
         opts: {
             initialPageParam: TPageParam
-            getNextPageParam: GetNextPageParamFunction<TPageParam, TData>
-            getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, TData>
+            getNextPageParam: GetNextPageParamFunction<TPageParam, ExtractData<Res>>
+            getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, ExtractData<Res>>
             cursorKey?: string
         },
-        overrides?: Partial<Omit<EdenInfiniteQueryOptions<TData, ExtractError<Res>, TPageParam>, 'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'>>
-    ): EdenInfiniteQueryOptions<TData, ExtractError<Res>, TPageParam>
+        overrides?: EdenInfiniteQueryOverrides<
+            ExtractData<Res>,
+            ExtractError<Res>,
+            TData,
+            EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
+            TPageParam
+        >
+    ): EdenInfiniteQueryOptions<
+        ExtractData<Res>,
+        ExtractError<Res>,
+        TData,
+        EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
+        TPageParam
+    >
 
     mutationKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey
 
-    mutationOptions<TData = ExtractData<Res>>(
-        overrides?: Partial<EdenMutationOptions<TData, ExtractError<Res>, TQMethodParam<Body, Headers, Query, Params>>>
-    ): EdenMutationOptions<TData, ExtractError<Res>, TQMethodParam<Body, Headers, Query, Params>>
+    mutationOptions<TData = ExtractData<Res>, TOnMutateResult = unknown>(
+        overrides?: EdenMutationOverrides<
+            TData,
+            ExtractError<Res>,
+            TQMethodParam<Body, Headers, Query, Params>,
+            TOnMutateResult
+        >
+    ): EdenMutationOptions<
+        TData,
+        ExtractError<Res>,
+        TQMethodParam<Body, Headers, Query, Params>,
+        TOnMutateResult
+    >
 
     invalidate(
         input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>,
@@ -326,12 +513,8 @@ export interface EdenTQUtilsMethod<
 }
 
 export namespace EdenTQUtils {
-    export type Create<App extends Elysia<any, any, any, any, any, any, any>> =
-        App extends {
-            '~Routes': infer Schema extends Record<any, any>
-        }
-            ? Prettify<Sign<Schema>> & CreateParams<Schema>
-            : 'Please install Elysia before using Eden'
+    export type Create<App extends EdenAppLike<any>> =
+        Prettify<Sign<ExtractRouteSchema<App>>> & CreateParams<ExtractRouteSchema<App>>
 
     export type Sign<in out Route extends Record<any, any>> = {
         [K in keyof Route as K extends `:${string}`

@@ -46,8 +46,7 @@
 	},
 	"peerDependencies": {
 		"@elysiajs/eden": ">=1.0.0",
-		"@tanstack/query-core": ">=5.0.0",
-		"elysia": ">=1.0.0"
+		"@tanstack/query-core": ">=5.0.0"
 	},
 	"devDependencies": {
 		"@elysiajs/eden": "^1.4.6",

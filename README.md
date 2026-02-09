@@ -25,6 +25,20 @@ import type { App } from './server' // Your Elysia app type
 const eden = createEdenTQ<App>('http://localhost:3000')
 ```
 
+### Route Schema Mode (No Direct Elysia Type Import)
+
+For large codebases, you can avoid pulling full app types into every client file:
+
+```ts
+import { createEdenTQFromSchema } from 'eden-tanstack-query'
+import type { App } from './server'
+
+type Routes = App['~Routes']
+const eden = createEdenTQFromSchema<Routes>('http://localhost:3000')
+```
+
+This keeps the client typed while reducing type-checker pressure compared with importing a full `Elysia` app type everywhere.
+
 ### Queries
 
 ```ts
@@ -188,6 +202,12 @@ Creates a type-safe Eden client with TanStack Query helpers.
 - `domain`: Your API URL or Elysia app instance
 - `config.queryKeyPrefix`: Custom prefix for query keys (default: `['eden']`)
 
+### `createEdenTQFromSchema<Routes>(domain, config?)`
+
+Creates the same client from a route schema (`App['~Routes']`) instead of the full app type.
+
+Use this when your editor/tsserver slows down with very large app types.
+
 ### `createEdenTQUtils<App>(eden, queryClient)`
 
 Creates a utils object with a bound QueryClient for tRPC-like ergonomics.
@@ -257,6 +277,15 @@ eden.users.post.mutationOptions({
 ```
 
 ## Before / After
+
+## TypeScript Performance Tips
+
+If your API has many routes:
+
+- Prefer `createEdenTQFromSchema<App['~Routes']>()` in frontend/client packages.
+- Create feature-scoped route schema aliases (for example `BillingRoutes`, `CaseRoutes`) and instantiate smaller clients per feature.
+- Increase tsserver memory in VS Code:
+  - `"typescript.tsserver.maxTsServerMemory": 4096`
 
 ### Before (manual boilerplate)
 

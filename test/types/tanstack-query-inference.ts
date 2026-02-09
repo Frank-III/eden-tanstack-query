@@ -3,7 +3,11 @@
  * It should NOT be run - only type-checked.
  */
 import { Elysia, t } from 'elysia'
-import { createEdenTQ } from '../../src'
+import {
+    createEdenTQ,
+    createEdenTQFromSchema,
+    type EdenAppLike
+} from '../../src'
 import { QueryClient } from '@tanstack/query-core'
 import { expectTypeOf } from 'expect-type'
 
@@ -51,6 +55,7 @@ const app = new Elysia()
     })
 
 const eden = createEdenTQ<typeof app>('http://localhost:3000')
+const edenFromSchema = createEdenTQFromSchema<typeof app['~Routes']>('http://localhost:3000')
 
 // ============================================================================
 // Test: QueryClient.fetchQuery works with queryOptions
@@ -114,6 +119,67 @@ async function testMutation() {
     expectTypeOf(options.queryFn).toBeFunction()
 }
 
+{
+    const options = edenFromSchema.user({ id: '123' }).get.queryOptions({
+        params: { id: '123' }
+    })
+
+    expectTypeOf(options.queryFn).toBeFunction()
+}
+
+// ============================================================================
+// Test: DataTag-style query key inference for QueryClient.getQueryData/setQueryData
+// ============================================================================
+{
+    const queryClient = new QueryClient()
+    const key = eden.user({ id: '123' }).get.queryKey({
+        params: { id: '123' }
+    })
+
+    const cached = queryClient.getQueryData(key)
+    expectTypeOf(cached).toEqualTypeOf<
+        | {
+              id: string
+              name: string
+              email: string
+          }
+        | undefined
+    >()
+
+    queryClient.setQueryData(key, {
+        id: '123',
+        name: 'Jane',
+        email: 'jane@example.com'
+    })
+
+    const cachedAgain = queryClient.getQueryData(key)
+    expectTypeOf(cachedAgain).toEqualTypeOf<
+        | {
+              id: string
+              name: string
+              email: string
+          }
+        | undefined
+    >()
+}
+
+{
+    const queryClient = new QueryClient()
+    const options = eden.user({ id: '123' }).get.queryOptions({
+        params: { id: '123' }
+    })
+
+    const cached = queryClient.getQueryData(options.queryKey)
+    expectTypeOf(cached).toEqualTypeOf<
+        | {
+              id: string
+              name: string
+              email: string
+          }
+        | undefined
+    >()
+}
+
 // ============================================================================
 // Test: mutationOptions has correct structure
 // ============================================================================
@@ -160,4 +226,38 @@ async function testUnionTypes() {
         // @ts-expect-error - expiresInDays must be 1 | 7 | 30
         body: { expiresInDays: 5 }
     })
+}
+
+// ============================================================================
+// Test: Union App types collapse into one client shape
+// ============================================================================
+type UnionAppA = EdenAppLike<{
+    review: {
+        get: {
+            body: never
+            headers: never
+            params: never
+            query: never
+            response: { 200: { ok: true } }
+        }
+    }
+}>
+
+type UnionAppB = EdenAppLike<{
+    health: {
+        get: {
+            body: never
+            headers: never
+            params: never
+            query: never
+            response: { 200: { ok: true } }
+        }
+    }
+}>
+
+{
+    const unionClient = createEdenTQ<UnionAppA | UnionAppB>('http://localhost:3000')
+
+    expectTypeOf(unionClient.review.get.queryOptions).toBeFunction()
+    expectTypeOf(unionClient.health.get.queryOptions).toBeFunction()
 }

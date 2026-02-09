@@ -1,5 +1,8 @@
 import { Elysia, t } from 'elysia'
-import { createEdenTQ } from '../src'
+import {
+    createEdenTQ,
+    createEdenTQFromSchema
+} from '../src'
 import { describe, expect, it, mock, test } from 'bun:test'
 
 const app = new Elysia()
@@ -26,6 +29,7 @@ const app = new Elysia()
 
 describe('createEdenTQ', () => {
     const eden = createEdenTQ<typeof app>(app)
+    const edenFromSchema = createEdenTQFromSchema<typeof app['~Routes']>('http://localhost:3000')
 
     describe('queryKey', () => {
         it('generates query key for simple route', () => {
@@ -83,10 +87,13 @@ describe('createEdenTQ', () => {
 
         it('accepts overrides', () => {
             const options = eden.get.queryOptions({}, {
-                queryKey: ['custom', 'key']
+                staleTime: 5_000,
+                gcTime: 10_000
             })
 
-            expect(options.queryKey).toEqual(['custom', 'key'])
+            expect(options.queryKey).toEqual(['eden', 'get', [], null, null])
+            expect(options.staleTime).toBe(5_000)
+            expect(options.gcTime).toBe(10_000)
         })
     })
 
@@ -205,6 +212,16 @@ describe('createEdenTQ', () => {
 
             const key = customEden.get.queryKey({})
             expect(key).toEqual(['myApp', 'api', 'get', [], null, null])
+        })
+    })
+
+    describe('createEdenTQFromSchema', () => {
+        it('produces a typed client from route schema only', () => {
+            const key = edenFromSchema.user({ id: '123' }).get.queryKey({
+                params: { id: '123' }
+            })
+
+            expect(key).toEqual(['eden', 'get', ['user', '123'], { id: '123' }, null])
         })
     })
 })

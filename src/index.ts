@@ -1,7 +1,9 @@
-import type { Elysia } from 'elysia'
 import type { QueryKey, QueryClient, QueryFunctionContext } from '@tanstack/query-core'
-import { treaty, type Treaty } from '@elysiajs/eden/treaty2'
+import { treaty } from '@elysiajs/eden/treaty2'
 import type {
+    EdenAppLike,
+    EdenRawResponse,
+    EdenTreatyConfig,
     EdenTQ,
     EdenTQUtils,
     EdenQueryOptions,
@@ -73,7 +75,7 @@ function callTreaty(
     segments: string[],
     method: string,
     input?: { body?: unknown; query?: unknown; headers?: unknown; fetch?: RequestInit }
-): Promise<Treaty.TreatyResponse<any>> {
+): Promise<EdenRawResponse<any>> {
     let current = raw
 
     for (const segment of segments) {
@@ -96,7 +98,7 @@ function callTreaty(
 }
 
 async function dataOrThrow<T>(
-    promise: Promise<Treaty.TreatyResponse<any>>
+    promise: Promise<EdenRawResponse<any>>
 ): Promise<T> {
     const result = await promise
     if (result.error) throw result.error
@@ -180,8 +182,8 @@ function createMethodDecorator(
 
     fn.queryOptions = <TData = unknown>(
         input: MethodDecoratorInput,
-        overrides?: Partial<EdenQueryOptions<TData>>
-    ): EdenQueryOptions<TData> => {
+        overrides?: Partial<EdenQueryOptions<TData, unknown, TData>>
+    ): EdenQueryOptions<TData, unknown, TData> => {
         return {
             queryKey: fn.queryKey(input),
             queryFn: (context) => {
@@ -200,8 +202,8 @@ function createMethodDecorator(
     fn.infiniteQueryOptions = <TData = unknown, TPageParam = unknown>(
         input: { params?: Record<string, string | number>; query?: unknown; headers?: unknown; fetch?: RequestInit; cursorKey?: string },
         opts: InfiniteQueryOpts<TData, TPageParam>,
-        overrides?: Partial<EdenInfiniteQueryOptions<TData, unknown, TPageParam>>
-    ): EdenInfiniteQueryOptions<TData, unknown, TPageParam> => {
+        overrides?: Partial<EdenInfiniteQueryOptions<TData, unknown, TData, QueryKey, TPageParam>>
+    ): EdenInfiniteQueryOptions<TData, unknown, TData, QueryKey, TPageParam> => {
         const cursorKey = opts.cursorKey ?? input.cursorKey ?? 'cursor'
 
         return {
@@ -324,14 +326,14 @@ function createEdenTQProxy(
 }
 
 export function createEdenTQ<
-    const App extends Elysia<any, any, any, any, any, any, any>
+    const App extends EdenAppLike<any>
 >(
     domain: string | App,
     config: EdenTQ.Config = {}
 ): EdenTQ.Create<App> {
     const { queryKeyPrefix = ['eden'], ...treatyConfig } = config
 
-    const raw = treaty<App>(domain as any, treatyConfig)
+    const raw = treaty(domain as any, treatyConfig)
 
     const ctx: ProxyContext = {
         raw,
@@ -339,6 +341,15 @@ export function createEdenTQ<
     }
 
     return createEdenTQProxy(ctx) as EdenTQ.Create<App>
+}
+
+export function createEdenTQFromSchema<
+    const Schema extends Record<any, any>
+>(
+    domain: string,
+    config: EdenTQ.Config = {}
+): EdenTQ.CreateFromSchema<Schema> {
+    return createEdenTQ<EdenAppLike<Schema>>(domain, config) as EdenTQ.CreateFromSchema<Schema>
 }
 
 interface UtilsProxyContext extends ProxyContext {
@@ -459,5 +470,14 @@ export function createEdenTQUtils<
     return createEdenTQUtilsProxy(utilsCtx) as EdenTQUtils.Create<T['~App']>
 }
 
-export type { EdenTQ, EdenTQUtils, EdenQueryOptions, EdenInfiniteQueryOptions, EdenMutationOptions }
+export type {
+    EdenAppLike,
+    EdenTreatyConfig,
+    EdenRawResponse,
+    EdenTQ,
+    EdenTQUtils,
+    EdenQueryOptions,
+    EdenInfiniteQueryOptions,
+    EdenMutationOptions
+}
 export type { QueryKey, QueryClient, InfiniteData } from '@tanstack/query-core'
