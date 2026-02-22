@@ -4,16 +4,16 @@ TanStack Query integration for [Elysia Eden](https://github.com/elysiajs/eden) -
 
 Highlights:
 
-- Auto-generated `queryKey`, `queryOptions`, `mutationOptions`, and cache helpers
+- Auto-generated `queryKey`, `queryOptions`, `mutationOptions`, `mutation`, and cache helpers
 - Type-safe data and error inference from your Elysia routes
 - Works with any TanStack Query adapter (React, Svelte, Vue, Solid)
 
 ## Installation
 
 ```bash
-bun add eden-tanstack-query @elysiajs/eden @tanstack/query-core
+bun add eden-tanstack-query @elysiajs/eden @tanstack/query-core elysia
 # or
-npm install eden-tanstack-query @elysiajs/eden @tanstack/query-core
+npm install eden-tanstack-query @elysiajs/eden @tanstack/query-core elysia
 ```
 
 ## Usage
@@ -88,8 +88,8 @@ const infiniteQuery = createInfiniteQuery(() =>
 ```ts
 import { createMutation } from '@tanstack/svelte-query'
 
-const mutation = createMutation(() => 
-  eden.users.post.mutationOptions({
+const mutation = createMutation(
+  eden.users.post.mutation({
     onSuccess: (data) => {
       console.log('Created user:', data.id)
     }
@@ -193,6 +193,9 @@ try {
 }
 ```
 
+If a route has no typed `response` schema (for example `response: never`),
+`queryFn`/`mutationFn` data falls back to `unknown` instead of `any`.
+
 ## API
 
 ### `createEdenTQ<App>(domain, config?)`
@@ -221,6 +224,7 @@ Each HTTP method (`get`, `post`, `put`, `delete`, `patch`) has:
 | `.queryOptions(input, overrides?)` | Returns `{ queryKey, queryFn, ...options }` for `createQuery` |
 | `.infiniteQueryOptions(input, opts, overrides?)` | Returns options for `createInfiniteQuery` |
 | `.mutationOptions(overrides?)` | Returns `{ mutationKey, mutationFn, ...options }` for `createMutation` |
+| `.mutation(overrides?)` | Returns a stable `() => mutationOptions` accessor for adapters expecting an options factory |
 | `.queryKey(input?)` | Returns the query key |
 | `.mutationKey(input?)` | Returns the mutation key |
 | `.invalidate(queryClient, input?, exact?)` | Invalidates matching queries |
@@ -275,6 +279,9 @@ eden.users.post.mutationOptions({
   }
 })
 ```
+
+`mutationOptions()` and `mutation()` are equivalent in typing.
+Use `mutation()` when your adapter usage prefers passing a stable options accessor directly.
 
 ## Before / After
 

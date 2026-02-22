@@ -247,6 +247,13 @@ function createMethodDecorator(
         }
     }
 
+    fn.mutation = <TData = unknown, TVariables = unknown>(
+        overrides?: Partial<EdenMutationOptions<TData, unknown, TVariables>>
+    ) => {
+        const options = fn.mutationOptions<TData, TVariables>(overrides)
+        return () => options
+    }
+
     fn.invalidate = async (
         queryClient: QueryClient,
         input?: { params?: Record<string, string | number>; query?: unknown },
@@ -370,6 +377,7 @@ function createUtilsMethodDecorator(
         infiniteQueryOptions: baseDecorator.infiniteQueryOptions,
         mutationKey: baseDecorator.mutationKey,
         mutationOptions: baseDecorator.mutationOptions,
+        mutation: baseDecorator.mutation,
 
         invalidate: async (
             input?: { params?: Record<string, string | number>; query?: unknown },

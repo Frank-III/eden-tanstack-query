@@ -128,6 +128,20 @@ describe('createEdenTQ', () => {
             })
             expect(data).toEqual({ deleted: '55' })
         })
+
+        it('provides stable mutation accessor for createMutation style usage', async () => {
+            const options = eden.user.post.mutation({
+                gcTime: 1_000
+            })()
+
+            expect(options.mutationKey).toEqual(['eden', 'post', ['user']])
+            expect(options.gcTime).toBe(1_000)
+
+            const data = await options.mutationFn({
+                body: { name: 'Alice', email: 'alice@example.com' }
+            })
+            expect(data).toEqual({ id: '1', name: 'Alice', email: 'alice@example.com' })
+        })
     })
 
     describe('invalidate', () => {

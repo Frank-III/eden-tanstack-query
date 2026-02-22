@@ -70,11 +70,15 @@ type ErrorStatusKey<Res extends Record<number, unknown>> = Exclude<
     SuccessStatusKey<Res>
 >
 
-type ExtractData<Res> = Res extends Record<number, unknown>
+type ExtractData<Res> = [Res] extends [never]
+    ? unknown
+    : Res extends Record<number, unknown>
     ? UnwrapFormData<SuccessStatusData<Res>>
     : unknown
 
-type ExtractError<Res> = Res extends Record<number, unknown>
+type ExtractError<Res> = [Res] extends [never]
+    ? { status: unknown; value: unknown }
+    : Res extends Record<number, unknown>
     ? [ErrorStatusKey<Res>] extends [never]
         ? { status: unknown; value: unknown }
         : {
@@ -144,6 +148,14 @@ type IsEmptyObject<T> = T extends Record<string, never>
         : false
     : false
 
+type RequiredKeys<T> = T extends Record<string, any>
+    ? {
+          [K in keyof T]-?: {} extends Pick<T, K> ? never : K
+      }[keyof T]
+    : never
+
+type HasRequiredKeys<T> = [RequiredKeys<T>] extends [never] ? false : true
+
 type MaybeEmptyObject<T, K extends PropertyKey> = [T] extends [never]
     ? {}
     : [T] extends [undefined]
@@ -152,7 +164,11 @@ type MaybeEmptyObject<T, K extends PropertyKey> = [T] extends [never]
         ? { [P in K]?: T }
         : undefined extends T
           ? { [P in K]?: T }
-          : { [P in K]: T }
+          : T extends Record<string, any>
+            ? HasRequiredKeys<T> extends true
+                ? { [P in K]: T }
+                : { [P in K]?: T }
+            : { [P in K]: T }
 
 type TQMethodParam<
     Body,
@@ -264,6 +280,13 @@ type EdenMutationOverrides<
     TOnMutateResult
 > = Partial<Omit<EdenMutationOptions<TData, TError, TVariables, TOnMutateResult>, 'mutationKey' | 'mutationFn'>>
 
+type EdenMutationAccessor<
+    TData,
+    TError,
+    TVariables,
+    TOnMutateResult
+> = () => EdenMutationOptions<TData, TError, TVariables, TOnMutateResult>
+
 export interface InfiniteQueryInput<TPageParam, Query, Params> {
     params?: Params
     query?: Omit<Query, 'cursor'> & { cursor?: TPageParam }
@@ -336,6 +359,20 @@ export interface EdenTQMethod<
             TOnMutateResult
         >
     ): EdenMutationOptions<
+        TData,
+        ExtractError<Res>,
+        TQMethodParam<Body, Headers, Query, Params>,
+        TOnMutateResult
+    >
+
+    mutation<TData = ExtractData<Res>, TOnMutateResult = unknown>(
+        overrides?: EdenMutationOverrides<
+            TData,
+            ExtractError<Res>,
+            TQMethodParam<Body, Headers, Query, Params>,
+            TOnMutateResult
+        >
+    ): EdenMutationAccessor<
         TData,
         ExtractError<Res>,
         TQMethodParam<Body, Headers, Query, Params>,
@@ -475,6 +512,20 @@ export interface EdenTQUtilsMethod<
             TOnMutateResult
         >
     ): EdenMutationOptions<
+        TData,
+        ExtractError<Res>,
+        TQMethodParam<Body, Headers, Query, Params>,
+        TOnMutateResult
+    >
+
+    mutation<TData = ExtractData<Res>, TOnMutateResult = unknown>(
+        overrides?: EdenMutationOverrides<
+            TData,
+            ExtractError<Res>,
+            TQMethodParam<Body, Headers, Query, Params>,
+            TOnMutateResult
+        >
+    ): EdenMutationAccessor<
         TData,
         ExtractError<Res>,
         TQMethodParam<Body, Headers, Query, Params>,
