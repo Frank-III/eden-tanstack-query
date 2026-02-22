@@ -45,9 +45,15 @@ type SymbolValue<T> = T extends Record<PropertyKey, unknown>
       }[keyof T]
     : never
 
-type UnwrapFormData<T> = [SymbolValue<T>] extends [never]
-    ? T
-    : SymbolValue<T>
+type NonSymbolKeys<T> = Exclude<keyof T, symbol>
+
+type UnwrapFormData<T> = T extends Record<PropertyKey, unknown>
+    ? [NonSymbolKeys<T>] extends [never]
+        ? [SymbolValue<T>] extends [never]
+            ? T
+            : SymbolValue<T>
+        : T
+    : T
 
 type NormalizedStatusCode<Status> = Status extends number
     ? Status

@@ -6,7 +6,7 @@
  * This file should NOT be run - only type-checked.
  */
 import { Elysia, t } from 'elysia'
-import { createEdenTQ, createEdenTQUtils } from '../../src'
+import { createEdenTQ, createEdenTQFromSchema, createEdenTQUtils } from '../../src'
 import { QueryClient } from '@tanstack/query-core'
 import { expectTypeOf } from 'expect-type'
 
@@ -43,6 +43,40 @@ import { expectTypeOf } from 'expect-type'
     // Verify it's not never
     expectTypeOf<UsersData>().not.toBeNever()
     expectTypeOf<UserData>().not.toBeNever()
+}
+
+// ============================================================================
+// Test: Symbol metadata on response objects should not collapse data to undefined
+// ============================================================================
+{
+    type ResponseWithSymbolMetadata = {
+        id: string
+        name: string
+        [Symbol.toStringTag]?: undefined
+    }
+
+    type AppSchema = {
+        communication: {
+            get: {
+                body: never
+                headers: never
+                params: never
+                query: never
+                response: {
+                    200: ResponseWithSymbolMetadata
+                    404: { error: string }
+                }
+            }
+        }
+    }
+
+    const eden = createEdenTQFromSchema<AppSchema>('http://localhost:3000')
+    const options = eden.communication.get.queryOptions({})
+
+    type Data = Awaited<ReturnType<typeof options.queryFn>>
+
+    expectTypeOf<Data>().not.toBeNever()
+    expectTypeOf<Data>().toMatchTypeOf<{ id: string; name: string }>()
 }
 
 // ============================================================================
