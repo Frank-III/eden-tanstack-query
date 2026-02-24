@@ -19,10 +19,10 @@ npm install eden-tanstack-query @elysiajs/eden @tanstack/query-core elysia
 ## Usage
 
 ```ts
-import { createEdenTQ } from 'eden-tanstack-query'
-import type { App } from './server' // Your Elysia app type
+import { createEdenTQ } from "eden-tanstack-query";
+import type { App } from "./server"; // Your Elysia app type
 
-const eden = createEdenTQ<App>('http://localhost:3000')
+const eden = createEdenTQ<App>("http://localhost:3000");
 ```
 
 ### Route Schema Mode (No Direct Elysia Type Import)
@@ -30,11 +30,11 @@ const eden = createEdenTQ<App>('http://localhost:3000')
 For large codebases, you can avoid pulling full app types into every client file:
 
 ```ts
-import { createEdenTQFromSchema } from 'eden-tanstack-query'
-import type { App } from './server'
+import { createEdenTQFromSchema } from "eden-tanstack-query";
+import type { App } from "./server";
 
-type Routes = App['~Routes']
-const eden = createEdenTQFromSchema<Routes>('http://localhost:3000')
+type Routes = App["~Routes"];
+const eden = createEdenTQFromSchema<Routes>("http://localhost:3000");
 ```
 
 This keeps the client typed while reducing type-checker pressure compared with importing a full `Elysia` app type everywhere.
@@ -42,14 +42,14 @@ This keeps the client typed while reducing type-checker pressure compared with i
 ### Queries
 
 ```ts
-import { createQuery } from '@tanstack/svelte-query' // or react-query, vue-query, etc.
+import { createQuery } from "@tanstack/svelte-query"; // or react-query, vue-query, etc.
 
 // Fully type-safe, auto-generated query key
-const query = createQuery(() => 
-  eden.users({ id: '123' }).get.queryOptions({
-    params: { id: '123' }
-  })
-)
+const query = createQuery(() =>
+  eden.users({ id: "123" }).get.queryOptions({
+    params: { id: "123" },
+  }),
+);
 
 // query.data is typed as your Elysia response type!
 ```
@@ -57,49 +57,104 @@ const query = createQuery(() =>
 React example:
 
 ```ts
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from "@tanstack/react-query";
 
 const query = useQuery(
-  eden.users({ id: '123' }).get.queryOptions({
-    params: { id: '123' }
-  })
-)
+  eden.users({ id: "123" }).get.queryOptions({
+    params: { id: "123" },
+  }),
+);
 ```
 
 ### Infinite Queries
 
 ```ts
-import { createInfiniteQuery } from '@tanstack/svelte-query'
+import { createInfiniteQuery } from "@tanstack/svelte-query";
 
 const infiniteQuery = createInfiniteQuery(() =>
   eden.posts.get.infiniteQueryOptions(
-    { query: { limit: '10' } },
+    { query: { limit: "10" } },
     {
       initialPageParam: 0,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
       // cursorKey: 'cursor' // optional, defaults to 'cursor'
-    }
-  )
-)
+    },
+  ),
+);
 ```
 
 ### Mutations
 
 ```ts
-import { createMutation } from '@tanstack/svelte-query'
+import { createMutation } from "@tanstack/svelte-query";
 
 const mutation = createMutation(
   eden.users.post.mutation({
     onSuccess: (data) => {
-      console.log('Created user:', data.id)
-    }
-  })
-)
+      console.log("Created user:", data.id);
+    },
+  }),
+);
 
 // Type-safe variables
 mutation.mutate({
-  body: { name: 'Alice', email: 'alice@example.com' }
-})
+  body: { name: "Alice", email: "alice@example.com" },
+});
+```
+
+### Svelte / Solid Inference Note
+
+When using `@tanstack/svelte-query` or `@tanstack/solid-query`, TypeScript can
+sometimes widen mutation `TData` to `undefined` if `mutationOptions(...)` is
+fully inlined inside `createMutation(() => ...)` / `useMutation(() => ...)`.
+
+Use one of these stable patterns:
+
+```ts
+import { createQuery, createMutation } from "@tanstack/svelte-query";
+
+// Query: hoist options first
+const userQueryOptions = eden.users({ id: "123" }).get.queryOptions({
+  params: { id: "123" },
+});
+const userQuery = createQuery(() => userQueryOptions);
+
+// Mutation: prefer the built-in accessor helper
+const createUserMutation = createMutation(
+  eden.users.post.mutation({
+    onSuccess: (data) => {
+      console.log(data.id);
+    },
+  }),
+);
+```
+
+Solid example:
+
+```ts
+import { useMutation } from "@tanstack/solid-query";
+
+const createUserMutation = useMutation(
+  eden.users.post.mutation({
+    onSuccess: (data) => {
+      console.log(data.id);
+    },
+  }),
+);
+```
+
+If you need fully inline calls, you can also pin the generic:
+
+```ts
+type CreateUserResponse = App["~Routes"]["users"]["post"]["response"][200];
+
+const mutation = createMutation(() =>
+  eden.users.post.mutationOptions<CreateUserResponse>({
+    onSuccess: (data) => {
+      console.log(data.id);
+    },
+  }),
+);
 ```
 
 ### Path Params: Inline vs Deferred
@@ -109,29 +164,29 @@ For routes like `/cases/:id/workflow`, you can now choose either pattern:
 Inline param (known when building options):
 
 ```ts
-const query = eden.cases({ id: 'case-123' }).workflow.get.queryOptions({
-  params: { id: 'case-123' }
-})
+const query = eden.cases({ id: "case-123" }).workflow.get.queryOptions({
+  params: { id: "case-123" },
+});
 
-const mutation = eden.cases({ id: 'case-123' }).workflow.patch.mutationOptions()
+const mutation = eden.cases({ id: "case-123" }).workflow.patch.mutationOptions();
 await mutation.mutationFn({
-  params: { id: 'case-123' },
-  body: { status: 'active' }
-})
+  params: { id: "case-123" },
+  body: { status: "active" },
+});
 ```
 
 Deferred param (ID known later at call time):
 
 ```ts
-const query = eden.cases({ id: '' }).workflow.get.queryOptions({
-  params: { id: caseId }
-})
+const query = eden.cases({ id: "" }).workflow.get.queryOptions({
+  params: { id: caseId },
+});
 
-const mutation = eden.cases({ id: '' }).workflow.patch.mutationOptions()
+const mutation = eden.cases({ id: "" }).workflow.patch.mutationOptions();
 await mutation.mutationFn({
   params: { id: caseId },
-  body: { status: 'active' }
-})
+  body: { status: "active" },
+});
 ```
 
 Recommendation:
@@ -142,17 +197,17 @@ Recommendation:
 ### Invalidation
 
 ```ts
-import { useQueryClient } from '@tanstack/svelte-query'
+import { useQueryClient } from "@tanstack/svelte-query";
 
-const queryClient = useQueryClient()
+const queryClient = useQueryClient();
 
 // Invalidate specific query
-await eden.users({ id: '123' }).get.invalidate(queryClient, {
-  params: { id: '123' }
-})
+await eden.users({ id: "123" }).get.invalidate(queryClient, {
+  params: { id: "123" },
+});
 
 // Invalidate all queries for a route
-await eden.users({ id: '123' }).get.invalidate(queryClient)
+await eden.users({ id: "123" }).get.invalidate(queryClient);
 ```
 
 ### Utils (Bound QueryClient)
@@ -160,20 +215,20 @@ await eden.users({ id: '123' }).get.invalidate(queryClient)
 For tRPC-like ergonomics, use `createEdenTQUtils` to bind a QueryClient once:
 
 ```ts
-import { createEdenTQ, createEdenTQUtils } from 'eden-tanstack-query'
+import { createEdenTQ, createEdenTQUtils } from "eden-tanstack-query";
 
-const eden = createEdenTQ<App>('http://localhost:3000')
-const utils = createEdenTQUtils(eden, queryClient)
+const eden = createEdenTQ<App>("http://localhost:3000");
+const utils = createEdenTQUtils(eden, queryClient);
 
 // No need to pass queryClient every time!
-await utils.users({ id: '123' }).get.invalidate({ params: { id: '123' } })
-await utils.posts.get.prefetch({ query: { limit: '10' } })
-await utils.posts.get.cancel()
-await utils.posts.get.refetch()
+await utils.users({ id: "123" }).get.invalidate({ params: { id: "123" } });
+await utils.posts.get.prefetch({ query: { limit: "10" } });
+await utils.posts.get.cancel();
+await utils.posts.get.refetch();
 
 // Cache manipulation
-utils.users({ id: '123' }).get.setData({ params: { id: '123' } }, { id: '123', name: 'Updated' })
-const cached = utils.users({ id: '123' }).get.getData({ params: { id: '123' } })
+utils.users({ id: "123" }).get.setData({ params: { id: "123" } }, { id: "123", name: "Updated" });
+const cached = utils.users({ id: "123" }).get.getData({ params: { id: "123" } });
 ```
 
 ### Error Handling
@@ -182,12 +237,12 @@ const cached = utils.users({ id: '123' }).get.getData({ params: { id: '123' } })
 Query error states are populated automatically:
 
 ```ts
-const options = eden.users({ id: '123' }).get.queryOptions({
-  params: { id: '123' }
-})
+const options = eden.users({ id: "123" }).get.queryOptions({
+  params: { id: "123" },
+});
 
 try {
-  const data = await options.queryFn()
+  const data = await options.queryFn();
 } catch (error) {
   // error is typed from your Elysia response map
 }
@@ -219,19 +274,19 @@ Creates a utils object with a bound QueryClient for tRPC-like ergonomics.
 
 Each HTTP method (`get`, `post`, `put`, `delete`, `patch`) has:
 
-| Method | Description |
-|--------|-------------|
-| `.queryOptions(input, overrides?)` | Returns `{ queryKey, queryFn, ...options }` for `createQuery` |
-| `.infiniteQueryOptions(input, opts, overrides?)` | Returns options for `createInfiniteQuery` |
-| `.mutationOptions(overrides?)` | Returns `{ mutationKey, mutationFn, ...options }` for `createMutation` |
-| `.mutation(overrides?)` | Returns a stable `() => mutationOptions` accessor for adapters expecting an options factory |
-| `.queryKey(input?)` | Returns the query key |
-| `.mutationKey(input?)` | Returns the mutation key |
-| `.invalidate(queryClient, input?, exact?)` | Invalidates matching queries |
-| `.prefetch(queryClient, input)` | Prefetch a query |
-| `.ensureData(queryClient, input)` | Ensure data exists or fetch it |
-| `.setData(queryClient, input, updater)` | Manually set cache data |
-| `.getData(queryClient, input)` | Read from cache |
+| Method                                           | Description                                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `.queryOptions(input, overrides?)`               | Returns `{ queryKey, queryFn, ...options }` for `createQuery`                               |
+| `.infiniteQueryOptions(input, opts, overrides?)` | Returns options for `createInfiniteQuery`                                                   |
+| `.mutationOptions(overrides?)`                   | Returns `{ mutationKey, mutationFn, ...options }` for `createMutation`                      |
+| `.mutation(overrides?)`                          | Returns a stable `() => mutationOptions` accessor for adapters expecting an options factory |
+| `.queryKey(input?)`                              | Returns the query key                                                                       |
+| `.mutationKey(input?)`                           | Returns the mutation key                                                                    |
+| `.invalidate(queryClient, input?, exact?)`       | Invalidates matching queries                                                                |
+| `.prefetch(queryClient, input)`                  | Prefetch a query                                                                            |
+| `.ensureData(queryClient, input)`                | Ensure data exists or fetch it                                                              |
+| `.setData(queryClient, input, updater)`          | Manually set cache data                                                                     |
+| `.getData(queryClient, input)`                   | Read from cache                                                                             |
 
 ### Query Key Shape
 
@@ -253,15 +308,15 @@ You can pass standard TanStack Query options as overrides:
 
 ```ts
 eden.posts.get.queryOptions(
-  { query: { limit: '10' } },
+  { query: { limit: "10" } },
   {
     staleTime: 5000,
     gcTime: 10000,
     enabled: isReady,
     refetchOnMount: false,
-    retry: 3
-  }
-)
+    retry: 3,
+  },
+);
 ```
 
 ### Mutation Options Overrides
@@ -276,8 +331,8 @@ eden.users.post.mutationOptions({
   },
   onError: (error, variables, context) => {
     // Rollback
-  }
-})
+  },
+});
 ```
 
 `mutationOptions()` and `mutation()` are equivalent in typing.
@@ -299,13 +354,13 @@ If your API has many routes:
 ```ts
 export function createUserQuery(userId: string) {
   return createQuery<User>(() => ({
-    queryKey: ['users', userId],
+    queryKey: ["users", userId],
     queryFn: async () => {
-      const { data, error } = await api.users({ id: userId }).get()
-      if (error) throw error
-      return data as User // Manual cast!
+      const { data, error } = await api.users({ id: userId }).get();
+      if (error) throw error;
+      return data as User; // Manual cast!
     },
-  }))
+  }));
 }
 ```
 
@@ -313,11 +368,11 @@ export function createUserQuery(userId: string) {
 
 ```ts
 export function createUserQuery(userId: string) {
-  return createQuery(() => 
+  return createQuery(() =>
     eden.users({ id: userId }).get.queryOptions({
-      params: { id: userId }
-    })
-  )
+      params: { id: userId },
+    }),
+  );
 }
 // Types are inferred from your Elysia server!
 ```
