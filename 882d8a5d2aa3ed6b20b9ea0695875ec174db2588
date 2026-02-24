@@ -1,0 +1,24 @@
+README.md
+  6dac1af47df5553c 105-113,115-116,121-125,130-134,136-139,144-148,150-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "882d8a5d2aa3ed6b20b9ea0695875ec174db2588",
+  "prompts": {
+    "6dac1af47df5553c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c8280-18bb-7090-b11c-9d48d0968c22",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Frank Wang <1454884738@qq.com>",
+      "messages": [],
+      "total_additions": 55,
+      "total_deletions": 0,
+      "accepted_lines": 36,
+      "overriden_lines": 19,
+      "messages_url": "https://usegitai.com/cas/9dc3a01d834dda8643f3c2754eb56967ea076c291624e18592ecef12bc570545"
+    }
+  }
+}
