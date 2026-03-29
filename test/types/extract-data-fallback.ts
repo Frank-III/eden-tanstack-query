@@ -195,7 +195,7 @@ import { expectTypeOf } from "expect-type";
 // ============================================================================
 // Test: QueryClient integration doesn't produce never
 // ============================================================================
-async function testQueryClientIntegration() {
+async function _testQueryClientIntegration() {
   const app = new Elysia().get("/data", () => ({ value: 123 }), {
     response: t.Object({ value: t.Number() }),
   });

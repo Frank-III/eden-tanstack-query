@@ -29,7 +29,7 @@ type IsAny<T> = 0 extends 1 & T ? true : false;
   const valueIsAny: IsAny<typeof value> = false;
   void valueIsAny;
   // @ts-expect-error unknown value should not allow arbitrary property access
-  value.anyField;
+  void value.anyField;
 }
 
 {
@@ -38,5 +38,5 @@ type IsAny<T> = 0 extends 1 & T ? true : false;
   const valueIsAny: IsAny<typeof value> = false;
   void valueIsAny;
   // @ts-expect-error unknown value should not allow arbitrary property access
-  value.anyField;
+  void value.anyField;
 }

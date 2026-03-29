@@ -7,7 +7,6 @@
  */
 import type {
   EdenTQ,
-  EdenTQUtils,
   EdenQueryOptions,
   EdenInfiniteQueryOptions,
   EdenMutationOptions,
@@ -92,7 +91,10 @@ import { expectTypeOf } from "expect-type";
   expectTypeOf<QueryKey>().toMatchTypeOf<readonly unknown[]>();
 
   const qc: QueryClient = {} as QueryClient;
-  expectTypeOf(qc.fetchQuery).toBeFunction();
-  expectTypeOf(qc.fetchInfiniteQuery).toBeFunction();
-  expectTypeOf(qc.invalidateQueries).toBeFunction();
+  const fetchQuery = qc.fetchQuery.bind(qc);
+  const fetchInfiniteQuery = qc.fetchInfiniteQuery.bind(qc);
+  const invalidateQueries = qc.invalidateQueries.bind(qc);
+  expectTypeOf(fetchQuery).toBeFunction();
+  expectTypeOf(fetchInfiniteQuery).toBeFunction();
+  expectTypeOf(invalidateQueries).toBeFunction();
 }

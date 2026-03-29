@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { createEdenTQ } from "../src";
-import { describe, expect, it, mock, test } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { expectTypeOf } from "expect-type";
 
 const ShareLinkSchema = t.Object({

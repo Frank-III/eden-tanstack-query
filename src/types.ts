@@ -290,7 +290,7 @@ export interface InfiniteQueryInput<TPageParam, Query, Params> {
 }
 
 export interface EdenTQMethod<Body, Headers, Query, Params, Res> {
-  <TQueryFnData = ExtractData<Res>>(
+  (
     input: TQMethodParam<Body, Headers, Query, Params>,
     options?: RequestInit,
   ): Promise<EdenRawResponse<Res>>;

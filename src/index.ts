@@ -89,7 +89,7 @@ function withContextSignal(
 ): RequestInit | undefined {
   if (!signal || fetch?.signal) return fetch;
   return {
-    ...(fetch ?? {}),
+    ...fetch,
     signal,
   };
 }
@@ -107,7 +107,7 @@ function resolvePathSegmentFromCallArg(body: unknown): string | undefined {
     return `:${paramName}`;
   }
 
-  return String(paramValue);
+  return `${paramValue as string | number}`;
 }
 
 interface ProxyContext {
@@ -146,9 +146,9 @@ function createMethodDecorator(ctx: ProxyContext, paths: string[], method: strin
   const fn = (input?: MethodDecoratorInput, options?: RequestInit) => {
     const mergedInput = options
       ? {
-          ...(input ?? {}),
+          ...input,
           fetch: {
-            ...(input?.fetch ?? {}),
+            ...input?.fetch,
             ...options,
           },
         }

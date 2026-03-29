@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { createEdenTQ, createEdenTQUtils } from "../src";
 import { QueryClient } from "@tanstack/query-core";
-import { describe, expect, it, mock, test } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 
 const posts = Array.from({ length: 50 }, (_, i) => ({
   id: `post-${i + 1}`,
@@ -192,8 +192,8 @@ describe("EdenTQ Utils", () => {
     const utils = createEdenTQUtils(eden, queryClient);
 
     expect(utils).toBeDefined();
-    expect(utils.posts.get.queryKey).toBeDefined();
-    expect(utils.posts.get.invalidate).toBeDefined();
+    expect(typeof utils.posts.get.queryKey).toBe("function");
+    expect(typeof utils.posts.get.invalidate).toBe("function");
   });
 
   it("invalidate without passing queryClient", async () => {
@@ -364,6 +364,7 @@ describe("Error handling", () => {
 
     const options = badEden.get.queryOptions({});
 
+    // eslint-disable-next-line typescript-eslint/await-thenable -- bun:test .rejects returns a Promise
     await expect(queryClient.fetchQuery(options)).rejects.toThrow();
   });
 
@@ -386,6 +387,7 @@ describe("Error handling", () => {
 
     const options = badEden.user.post.mutationOptions();
 
+    // eslint-disable-next-line typescript-eslint/await-thenable -- bun:test .rejects returns a Promise
     await expect(
       options.mutationFn({ body: { name: "Test", email: "test@test.com" } }),
     ).rejects.toThrow();

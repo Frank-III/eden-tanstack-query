@@ -68,7 +68,7 @@ const edenFromSchema = createEdenTQFromSchema<(typeof app)["~Routes"]>("http://l
 // ============================================================================
 // Test: QueryClient.fetchQuery works with queryOptions
 // ============================================================================
-async function testFetchQuery() {
+async function _testFetchQuery() {
   const queryClient = new QueryClient();
 
   const options = eden.user({ id: "123" }).get.queryOptions({
@@ -90,7 +90,7 @@ async function testFetchQuery() {
 // ============================================================================
 // Test: Mutation with QueryClient works
 // ============================================================================
-async function testMutation() {
+async function _testMutation() {
   const queryClient = new QueryClient();
 
   const mutationOptions = eden.user.post.mutationOptions();
@@ -204,7 +204,7 @@ async function testMutation() {
 // ============================================================================
 // Test: Union types are preserved
 // ============================================================================
-async function testUnionTypes() {
+async function _testUnionTypes() {
   const queryClient = new QueryClient();
 
   const options = eden.cases({ id: "case-1" })["share-link"].post.mutationOptions();
@@ -225,11 +225,11 @@ async function testUnionTypes() {
 // ============================================================================
 {
   // @ts-expect-error - body must have both name and email
-  eden.user.post.mutationOptions().mutationFn({ body: { name: "test" } });
+  void eden.user.post.mutationOptions().mutationFn({ body: { name: "test" } });
 }
 
 {
-  eden
+  void eden
     .cases({ id: "x" })
     ["share-link"].post.mutationOptions()
     .mutationFn({
@@ -269,6 +269,10 @@ type UnionAppB = EdenAppLike<{
 {
   const unionClient = createEdenTQ<UnionAppA | UnionAppB>("http://localhost:3000");
 
-  expectTypeOf(unionClient.review.get.queryOptions).toBeFunction();
-  expectTypeOf(unionClient.health.get.queryOptions).toBeFunction();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- proxy method, no real `this` binding
+  const reviewQueryOptions = unionClient.review.get.queryOptions;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- proxy method, no real `this` binding
+  const healthQueryOptions = unionClient.health.get.queryOptions;
+  expectTypeOf(reviewQueryOptions).toBeFunction();
+  expectTypeOf(healthQueryOptions).toBeFunction();
 }
