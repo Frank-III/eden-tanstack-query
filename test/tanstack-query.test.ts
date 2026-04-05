@@ -43,6 +43,34 @@ describe("createEdenTQ", () => {
       const key = eden.posts.get.queryKey({ query: { filter: "active" } });
       expect(key).toEqual(["eden", "get", ["posts"], null, { filter: "active" }]);
     });
+
+    it("includes body in query key for POST endpoints", () => {
+      const key1 = eden.user.post.queryKey({ body: { name: "Alice", email: "a@b.com" } });
+      const key2 = eden.user.post.queryKey({ body: { name: "Bob", email: "b@b.com" } });
+
+      expect(key1).not.toEqual(key2);
+      expect(key1).toEqual([
+        "eden",
+        "post",
+        ["user"],
+        null,
+        null,
+        { name: "Alice", email: "a@b.com" },
+      ]);
+      expect(key2).toEqual([
+        "eden",
+        "post",
+        ["user"],
+        null,
+        null,
+        { name: "Bob", email: "b@b.com" },
+      ]);
+    });
+
+    it("omits body from query key when not provided", () => {
+      const key = eden.user.post.queryKey({});
+      expect(key).toEqual(["eden", "post", ["user"], null, null]);
+    });
   });
 
   describe("queryOptions", () => {
