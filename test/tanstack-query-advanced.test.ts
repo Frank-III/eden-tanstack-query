@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { createEdenTQ, createEdenTQUtils } from "../src";
-import { QueryClient } from "@tanstack/query-core";
+import { QueryClient, QueryObserver } from "@tanstack/query-core";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 const posts = Array.from({ length: 50 }, (_, i) => ({
@@ -410,5 +410,106 @@ describe("Error handling", () => {
     const state = queryClient.getQueryState(options.queryKey);
     expect(state?.error).toBeDefined();
     expect(state?.status).toBe("error");
+  });
+});
+
+describe("QueryObserver refetch on key change", () => {
+  it("refetches when route params change", async () => {
+    const queryClient = new QueryClient();
+
+    const opts1 = eden.user({ id: "1" }).get.queryOptions({ params: { id: "1" } });
+    const observer = new QueryObserver(queryClient, opts1);
+
+    const results: Array<{ dataUpdatedAt: number; data: unknown }> = [];
+    const unsubscribe = observer.subscribe((result) => {
+      if (result.data) results.push({ dataUpdatedAt: result.dataUpdatedAt, data: result.data });
+    });
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+    expect(results[0].data).toEqual({ id: "1", name: "John" });
+
+    const opts2 = eden.user({ id: "2" }).get.queryOptions({ params: { id: "2" } });
+    observer.setOptions(opts2);
+
+    await vi.waitFor(() => expect(results).toHaveLength(2));
+    expect(results[1].data).toEqual({ id: "2", name: "John" });
+
+    unsubscribe();
+    queryClient.clear();
+  });
+
+  it("refetches when query params change", async () => {
+    const queryClient = new QueryClient();
+
+    const opts1 = eden.posts.get.queryOptions({ query: { limit: "5" } });
+    const observer = new QueryObserver(queryClient, opts1);
+
+    const results: unknown[] = [];
+    const unsubscribe = observer.subscribe((result) => {
+      if (result.data) results.push(result.data);
+    });
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+
+    const opts2 = eden.posts.get.queryOptions({ query: { limit: "3" } });
+    observer.setOptions(opts2);
+
+    await vi.waitFor(() => expect(results).toHaveLength(2));
+
+    unsubscribe();
+    queryClient.clear();
+  });
+
+  it("refetches when POST body changes", async () => {
+    const queryClient = new QueryClient();
+
+    const opts1 = eden.user.post.queryOptions({
+      body: { name: "Alice", email: "alice@a.com" },
+    });
+    const observer = new QueryObserver(queryClient, opts1);
+
+    const results: unknown[] = [];
+    const unsubscribe = observer.subscribe((result) => {
+      if (result.data) results.push(result.data);
+    });
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+    expect(results[0]).toEqual({ id: "1", name: "Alice", email: "alice@a.com" });
+
+    const opts2 = eden.user.post.queryOptions({
+      body: { name: "Bob", email: "bob@b.com" },
+    });
+    observer.setOptions(opts2);
+
+    await vi.waitFor(() => expect(results).toHaveLength(2));
+    expect(results[1]).toEqual({ id: "1", name: "Bob", email: "bob@b.com" });
+
+    unsubscribe();
+    queryClient.clear();
+  });
+
+  it("does NOT refetch when body stays the same", async () => {
+    const queryClient = new QueryClient();
+
+    const body = { name: "Alice", email: "alice@a.com" };
+    const opts = eden.user.post.queryOptions({ body });
+    const observer = new QueryObserver(queryClient, opts);
+
+    const results: unknown[] = [];
+    const unsubscribe = observer.subscribe((result) => {
+      if (result.data) results.push(result.data);
+    });
+
+    await vi.waitFor(() => expect(results).toHaveLength(1));
+
+    // Set same options again — should not trigger a new fetch
+    observer.setOptions(eden.user.post.queryOptions({ body }));
+
+    // Give it a tick to ensure no extra fetch fires
+    await new Promise((r) => setTimeout(r, 50));
+    expect(results).toHaveLength(1);
+
+    unsubscribe();
+    queryClient.clear();
   });
 });
