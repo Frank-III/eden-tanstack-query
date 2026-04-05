@@ -87,9 +87,27 @@ function callTreaty(
   return current[method](input?.body, Object.keys(options).length > 0 ? options : undefined);
 }
 
+export class EdenRequestError extends Error {
+  readonly status: number;
+  readonly value: unknown;
+
+  constructor(error: { status: number; value: unknown }) {
+    const message =
+      typeof error.value === "string"
+        ? error.value
+        : error.value instanceof Error
+          ? error.value.message
+          : JSON.stringify(error.value);
+    super(message);
+    this.name = "EdenRequestError";
+    this.status = error.status;
+    this.value = error.value;
+  }
+}
+
 async function dataOrThrow<T>(promise: Promise<EdenRawResponse<any>>): Promise<T> {
   const result = await promise;
-  if (result.error) throw result.error;
+  if (result.error) throw new EdenRequestError(result.error as { status: number; value: unknown });
   return result.data as T;
 }
 
