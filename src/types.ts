@@ -238,6 +238,45 @@ export interface EdenInfiniteQueryOptions<
   getPreviousPageParam?: GetPreviousPageParamFunction<TPageParam, TQueryFnData>;
 }
 
+export interface StreamedQueryFnOptions {
+  /**
+   * Controls how chunks are handled when the query is refetched while previous data is present.
+   * - "append": keep previous chunks, append new ones.
+   * - "reset": clear data back to undefined, then fill as chunks arrive.
+   * - "replace": keep the last rendered array until the new stream completes, then swap.
+   */
+  refetchMode?: "append" | "reset" | "replace";
+}
+
+export interface EdenStreamedQueryOptions<
+  TChunk = unknown,
+  TError = unknown,
+  TData = TChunk[],
+  TQueryKey extends QueryKey = QueryKey,
+> extends Omit<
+  QueryObserverOptions<TChunk[], TError, TData, TChunk[], TQueryKey>,
+  "queryKey" | "queryFn" | "persister"
+> {
+  queryKey: TQueryKey;
+  queryFn: (context: QueryFunctionContext<TQueryKey>) => Promise<TChunk[]>;
+}
+
+export interface EdenLiveQueryOptions<
+  TChunk = unknown,
+  TError = unknown,
+  TData = TChunk,
+  TQueryKey extends QueryKey = QueryKey,
+> extends Omit<
+  QueryObserverOptions<TChunk, TError, TData, TChunk, TQueryKey>,
+  "queryKey" | "queryFn" | "persister"
+> {
+  queryKey: TQueryKey;
+  queryFn: (context: QueryFunctionContext<TQueryKey>) => Promise<TChunk>;
+}
+
+type AsyncIterableElement<T> =
+  T extends AsyncIterable<infer U> ? U : T extends AsyncGenerator<infer U, any, any> ? U : T;
+
 export interface EdenMutationOptions<
   TData = unknown,
   TError = unknown,
@@ -337,6 +376,41 @@ export interface EdenTQMethod<Body, Headers, Query, Params, Res> {
     EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
     TPageParam
   >;
+
+  streamedOptions<TChunk = AsyncIterableElement<ExtractData<Res>>, TData = TChunk[]>(
+    input?: TQMethodParam<Body, Headers, Query, Params>,
+    overrides?: Partial<
+      Omit<
+        EdenStreamedQueryOptions<
+          TChunk,
+          ExtractError<Res>,
+          TData,
+          EdenMethodQueryKey<Params, Query, Res>
+        >,
+        "queryKey" | "queryFn"
+      >
+    > & { queryFnOptions?: StreamedQueryFnOptions },
+  ): EdenStreamedQueryOptions<
+    TChunk,
+    ExtractError<Res>,
+    TData,
+    EdenMethodQueryKey<Params, Query, Res>
+  >;
+
+  liveOptions<TChunk = AsyncIterableElement<ExtractData<Res>>, TData = TChunk>(
+    input?: TQMethodParam<Body, Headers, Query, Params>,
+    overrides?: Partial<
+      Omit<
+        EdenLiveQueryOptions<
+          TChunk,
+          ExtractError<Res>,
+          TData,
+          EdenMethodQueryKey<Params, Query, Res>
+        >,
+        "queryKey" | "queryFn"
+      >
+    >,
+  ): EdenLiveQueryOptions<TChunk, ExtractError<Res>, TData, EdenMethodQueryKey<Params, Query, Res>>;
 
   mutationKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey;
 
@@ -479,6 +553,41 @@ export interface EdenTQUtilsMethod<Body, Headers, Query, Params, Res> {
     EdenMethodInfiniteQueryKey<Params, Query, Res, TPageParam>,
     TPageParam
   >;
+
+  streamedOptions<TChunk = AsyncIterableElement<ExtractData<Res>>, TData = TChunk[]>(
+    input?: TQMethodParam<Body, Headers, Query, Params>,
+    overrides?: Partial<
+      Omit<
+        EdenStreamedQueryOptions<
+          TChunk,
+          ExtractError<Res>,
+          TData,
+          EdenMethodQueryKey<Params, Query, Res>
+        >,
+        "queryKey" | "queryFn"
+      >
+    > & { queryFnOptions?: StreamedQueryFnOptions },
+  ): EdenStreamedQueryOptions<
+    TChunk,
+    ExtractError<Res>,
+    TData,
+    EdenMethodQueryKey<Params, Query, Res>
+  >;
+
+  liveOptions<TChunk = AsyncIterableElement<ExtractData<Res>>, TData = TChunk>(
+    input?: TQMethodParam<Body, Headers, Query, Params>,
+    overrides?: Partial<
+      Omit<
+        EdenLiveQueryOptions<
+          TChunk,
+          ExtractError<Res>,
+          TData,
+          EdenMethodQueryKey<Params, Query, Res>
+        >,
+        "queryKey" | "queryFn"
+      >
+    >,
+  ): EdenLiveQueryOptions<TChunk, ExtractError<Res>, TData, EdenMethodQueryKey<Params, Query, Res>>;
 
   mutationKey(input?: OmitQueryInput<TQMethodParam<Body, Headers, Query, Params>>): QueryKey;
 
