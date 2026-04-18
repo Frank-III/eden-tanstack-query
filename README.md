@@ -83,6 +83,42 @@ const infiniteQuery = createInfiniteQuery(() =>
 );
 ```
 
+### Streamed Queries (SSE / async generators)
+
+For Elysia routes that return an async generator (or use `sse()`), use `.streamedOptions`. Each yielded chunk is appended to the array stored in `data`.
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+
+// server: app.get('/chat', async function* () { yield "hi"; yield "there"; })
+const query = useQuery(
+  eden.chat.get.streamedOptions(
+    { query: { prompt: "hello" } },
+    {
+      queryFnOptions: { refetchMode: "reset" }, // 'append' | 'reset' | 'replace'
+      retry: true,
+      // any other QueryObserverOptions...
+    },
+  ),
+);
+
+// query.data: string[] — accumulated chunks
+```
+
+Built on TanStack Query's `experimental_streamedQuery`. Works with `useQuery`, `useSuspenseQuery`, `prefetchQuery`, etc.
+
+### Live Queries
+
+Use `.liveOptions` when you only care about the latest event. Each chunk replaces the previous value via `setQueryData`, and the resolved data is the final chunk.
+
+```ts
+const query = useQuery(eden.counter.get.liveOptions(undefined, { retry: true }));
+
+// query.data: TChunk — the most recent event
+```
+
+The route must yield at least one chunk; otherwise the query rejects. Both helpers honor `AbortSignal` from TanStack Query.
+
 ### Mutations
 
 ```ts
@@ -278,6 +314,8 @@ Each HTTP method (`get`, `post`, `put`, `delete`, `patch`) has:
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `.queryOptions(input, overrides?)`               | Returns `{ queryKey, queryFn, ...options }` for `createQuery`                               |
 | `.infiniteQueryOptions(input, opts, overrides?)` | Returns options for `createInfiniteQuery`                                                   |
+| `.streamedOptions(input?, overrides?)`           | Returns options for SSE/generator routes; `data` is `TChunk[]` (chunks accumulate)          |
+| `.liveOptions(input?, overrides?)`               | Returns options for SSE/generator routes; `data` is the latest `TChunk` (replaces)          |
 | `.mutationOptions(overrides?)`                   | Returns `{ mutationKey, mutationFn, ...options }` for `createMutation`                      |
 | `.mutation(overrides?)`                          | Returns a stable `() => mutationOptions` accessor for adapters expecting an options factory |
 | `.queryKey(input?)`                              | Returns the query key                                                                       |
