@@ -1,6 +1,6 @@
 {
-  "name": "eden-tanstack-query",
-  "version": "0.1.0-alpha.4",
+  "name": "@neilthefisher/eden-tanstack-query",
+  "version": "0.2.1",
   "description": "TanStack Query integration for Elysia Eden - type-safe queries and mutations",
   "keywords": [
     "eden",
@@ -49,10 +49,10 @@
   },
   "devDependencies": {
     "@elysiajs/eden": "^1.4.9",
-    "@tanstack/query-core": "^5.96.2",
+    "@tanstack/query-core": "^5.100.7",
     "elysia": "^1.4.28",
     "expect-type": "^1.3.0",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "vite-plus": "latest"
   },
   "peerDependencies": {
