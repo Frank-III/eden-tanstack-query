@@ -1,6 +1,6 @@
 {
   "name": "@neilthefisher/eden-tanstack-query",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TanStack Query integration for Elysia Eden with SSE (streamed/live) support. Fork of Frank-III/eden-tanstack-query.",
   "keywords": [
     "eden",
@@ -58,10 +58,10 @@
   },
   "devDependencies": {
     "@elysiajs/eden": "^1.4.9",
-    "@tanstack/query-core": "^5.96.2",
+    "@tanstack/query-core": "^5.100.7",
     "elysia": "^1.4.28",
     "expect-type": "^1.3.0",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "vite-plus": "latest"
   },
   "peerDependencies": {
