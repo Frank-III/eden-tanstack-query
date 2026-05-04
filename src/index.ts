@@ -1,4 +1,10 @@
-import type { QueryKey, QueryClient, QueryFunctionContext } from "@tanstack/query-core";
+import type {
+  QueryKey,
+  QueryClient,
+  QueryFunctionContext,
+  QueryFunction,
+} from "@tanstack/query-core";
+import { experimental_streamedQuery } from "@tanstack/query-core";
 import { treaty } from "@elysiajs/eden/treaty2";
 import type {
   EdenAppLike,
@@ -9,6 +15,9 @@ import type {
   EdenQueryOptions,
   EdenInfiniteQueryOptions,
   EdenMutationOptions,
+  EdenStreamedQueryOptions,
+  EdenLiveQueryOptions,
+  StreamedQueryFnOptions,
 } from "./types";
 
 const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "options", "head"] as const;
@@ -109,6 +118,37 @@ async function dataOrThrow<T>(promise: Promise<EdenRawResponse<any>>): Promise<T
   const result = await promise;
   if (result.error) throw new EdenRequestError(result.error as { status: number; value: unknown });
   return result.data as T;
+}
+
+function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
+  return (
+    value != null &&
+    typeof value === "object" &&
+    typeof (value as AsyncIterable<T>)[Symbol.asyncIterator] === "function"
+  );
+}
+
+function liveQuery<TChunk, TQueryKey extends QueryKey>(
+  streamFn: (context: QueryFunctionContext<TQueryKey>) => Promise<AsyncIterable<TChunk>>,
+): QueryFunction<TChunk, TQueryKey> {
+  return async (context) => {
+    const stream = await streamFn(context);
+    let last: { chunk: TChunk } | undefined;
+
+    for await (const chunk of stream) {
+      if (context.signal.aborted) throw context.signal.reason;
+      last = { chunk };
+      context.client.setQueryData<TChunk>(context.queryKey, chunk);
+    }
+
+    if (!last) {
+      throw new Error(
+        `Live query for ${JSON.stringify(context.queryKey)} did not yield any data. Ensure the route returns an AsyncIterable with at least one chunk.`,
+      );
+    }
+
+    return last.chunk;
+  };
 }
 
 function withContextSignal(
@@ -249,6 +289,56 @@ function createMethodDecorator(ctx: ProxyContext, paths: string[], method: strin
     };
   };
 
+  const buildStreamFn = <TChunk>(input: MethodDecoratorInput | undefined) => {
+    return async (context: QueryFunctionContext<QueryKey>): Promise<AsyncIterable<TChunk>> => {
+      const materializedPath = materializePath(pathTemplate, input?.params);
+      const data = await dataOrThrow<unknown>(
+        callTreaty(ctx.raw, materializedPath, method, {
+          ...input,
+          fetch: withContextSignal(input?.fetch, context.signal),
+        }),
+      );
+      if (!isAsyncIterable<TChunk>(data)) {
+        throw new Error(
+          "streamedOptions/liveOptions require the route to return an AsyncIterable (e.g. an Elysia SSE/generator route).",
+        );
+      }
+      return data;
+    };
+  };
+
+  fn.streamedOptions = <TChunk = unknown>(
+    input?: MethodDecoratorInput,
+    overrides?: Partial<EdenStreamedQueryOptions<TChunk, unknown, TChunk[]>> & {
+      queryFnOptions?: StreamedQueryFnOptions;
+    },
+  ): EdenStreamedQueryOptions<TChunk, unknown, TChunk[]> => {
+    const { queryFnOptions, ...rest } = overrides ?? {};
+    return {
+      queryKey: fn.queryKey(input),
+      queryFn: experimental_streamedQuery<TChunk, TChunk[], QueryKey>({
+        streamFn: buildStreamFn<TChunk>(input),
+        refetchMode: queryFnOptions?.refetchMode,
+      }) as EdenStreamedQueryOptions<TChunk, unknown, TChunk[]>["queryFn"],
+      ...rest,
+    };
+  };
+
+  fn.liveOptions = <TChunk = unknown>(
+    input?: MethodDecoratorInput,
+    overrides?: Partial<EdenLiveQueryOptions<TChunk, unknown, TChunk>>,
+  ): EdenLiveQueryOptions<TChunk, unknown, TChunk> => {
+    return {
+      queryKey: fn.queryKey(input),
+      queryFn: liveQuery<TChunk, QueryKey>(buildStreamFn<TChunk>(input)) as EdenLiveQueryOptions<
+        TChunk,
+        unknown,
+        TChunk
+      >["queryFn"],
+      ...overrides,
+    };
+  };
+
   fn.mutationKey = (input?: {
     params?: Record<string, string | number>;
     query?: unknown;
@@ -379,6 +469,8 @@ function createUtilsMethodDecorator(ctx: UtilsProxyContext, paths: string[], met
     queryKey: baseDecorator.queryKey,
     queryOptions: baseDecorator.queryOptions,
     infiniteQueryOptions: baseDecorator.infiniteQueryOptions,
+    streamedOptions: baseDecorator.streamedOptions,
+    liveOptions: baseDecorator.liveOptions,
     mutationKey: baseDecorator.mutationKey,
     mutationOptions: baseDecorator.mutationOptions,
     mutation: baseDecorator.mutation,
@@ -486,5 +578,8 @@ export type {
   EdenQueryOptions,
   EdenInfiniteQueryOptions,
   EdenMutationOptions,
+  EdenStreamedQueryOptions,
+  EdenLiveQueryOptions,
+  StreamedQueryFnOptions,
 };
 export type { QueryKey, QueryClient, InfiniteData } from "@tanstack/query-core";
